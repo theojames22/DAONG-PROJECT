@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --base: #e6ebf2;
+  --base-light: #ffffff;
+  --base-dark: #b7c1d1;
+}
+
+body {
+  background-image: url("/images/background.jpg");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+@layer components {
+  /* Raised surface — the resting state for cards, buttons, the logo mark */
+  .neu-raised {
+    background-color: var(--base);
+    box-shadow:
+      8px 8px 16px var(--base-dark),
+      -8px -8px 16px var(--base-light);
+  }
+
+  /* Pressed / inset surface — used for text inputs and the active toggle segment */
+  .neu-pressed {
+    background-color: var(--base);
+    box-shadow:
+      inset 5px 5px 10px var(--base-dark),
+      inset -5px -5px 10px var(--base-light);
+  }
+
+  /* Soft raised, smaller radius — used for the segmented role toggle track */
+  .neu-track {
+    background-color: var(--base);
+    box-shadow:
+      inset 4px 4px 8px var(--base-dark),
+      inset -4px -4px 8px var(--base-light);
+  }
+
+  /* Button resting state, transitions into a pressed state on :active */
+  .neu-button {
+    background-color: var(--base);
+    box-shadow:
+      6px 6px 12px var(--base-dark),
+      -6px -6px 12px var(--base-light);
+    transition: box-shadow 120ms ease, transform 120ms ease;
+  }
+
+  .neu-button:active {
+    box-shadow:
+      inset 4px 4px 8px var(--base-dark),
+      inset -4px -4px 8px var(--base-light);
+    transform: translateY(1px);
+  }
+
+  /* Small circular icon buttons, e.g. show/hide password */
+  .neu-icon-btn {
+    background-color: var(--base);
+    box-shadow:
+      3px 3px 6px var(--base-dark),
+      -3px -3px 6px var(--base-light);
+    transition: box-shadow 120ms ease;
+  }
+
+  .neu-icon-btn:active {
+    box-shadow:
+      inset 2px 2px 4px var(--base-dark),
+      inset -2px -2px 4px var(--base-light);
+  }
+}
+
+/* Visible keyboard focus, kept crisp against the soft shadows */
+.neu-focus:focus-visible {
+  outline: 2px solid #b8862e;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -8,16 +8,20 @@ export default function SignOutButton() {
   const supabase = createClient();
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (err: any) {
+      console.error("Sign out error:", err);
+      alert("Failed to sign out. Please try again.");
+      return;
+    }
     router.push("/login");
     router.refresh();
   }
 
   return (
-    <button
-      onClick={handleSignOut}
-      className="neu-button neu-focus rounded-2xl px-5 py-2.5 text-[13.5px] font-semibold text-accent-dark"
-    >
+    <button onClick={handleSignOut} className="btn-secondary neu-focus">
       Sign out
     </button>
   );

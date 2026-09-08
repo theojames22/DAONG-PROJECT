@@ -3,84 +3,209 @@
 @tailwind utilities;
 
 :root {
-  --base: #e6ebf2;
-  --base-light: #ffffff;
-  --base-dark: #b7c1d1;
+  --base: #f5f9ff;
+  --shadow-light: rgba(255, 255, 255, 0.9);
+  --shadow-dark: rgba(148, 163, 184, 0.18);
+  --accent: #2563eb;
 }
 
 body {
-  background-image: url("/images/background.jpg");
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-  background-repeat: no-repeat;
+  background-color: var(--base);
 }
 
 @layer components {
-  /* Raised surface — the resting state for cards, buttons, the logo mark */
-  .neu-raised {
+  /* ---------- Neumorphic elevation system (3 levels, soft not extreme) ---------- */
+
+  /* Level 1 — small UI elements: icon buttons, chips, inline controls */
+  .elev-1 {
     background-color: var(--base);
-    box-shadow:
-      8px 8px 16px var(--base-dark),
-      -8px -8px 16px var(--base-light);
+    box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
   }
 
-  /* Pressed / inset surface — used for text inputs and the active toggle segment */
-  .neu-pressed {
+  /* Level 2 — cards: stat tiles, list rows, form panels */
+  .elev-2 {
     background-color: var(--base);
-    box-shadow:
-      inset 5px 5px 10px var(--base-dark),
-      inset -5px -5px 10px var(--base-light);
+    box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
   }
 
-  /* Soft raised, smaller radius — used for the segmented role toggle track */
-  .neu-track {
+  /* Level 3 — major panels: sidebar, modals, page-level containers */
+  .elev-3 {
     background-color: var(--base);
-    box-shadow:
-      inset 4px 4px 8px var(--base-dark),
-      inset -4px -4px 8px var(--base-light);
+    box-shadow: 14px 14px 28px var(--shadow-dark), -14px -14px 28px var(--shadow-light);
   }
 
-  /* Button resting state, transitions into a pressed state on :active */
+  /* Pressed / inset — text inputs, active nav item, pressed buttons */
+  .elev-pressed {
+    background-color: var(--base);
+    box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+  }
+
+  /* Backwards-compatible aliases so existing markup keeps working */
+  .neu-raised { @apply elev-2; }
+  .neu-pressed { @apply elev-pressed; }
+  .neu-track { @apply elev-pressed; }
+
   .neu-button {
     background-color: var(--base);
-    box-shadow:
-      6px 6px 12px var(--base-dark),
-      -6px -6px 12px var(--base-light);
-    transition: box-shadow 120ms ease, transform 120ms ease;
+    box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+    transition: box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1), transform 150ms ease;
   }
-
+  .neu-button:hover {
+    box-shadow: 8px 8px 15px var(--shadow-dark), -8px -8px 15px var(--shadow-light);
+  }
   .neu-button:active {
-    box-shadow:
-      inset 4px 4px 8px var(--base-dark),
-      inset -4px -4px 8px var(--base-light);
+    box-shadow: inset 3px 3px 7px var(--shadow-dark), inset -3px -3px 7px var(--shadow-light);
     transform: translateY(1px);
   }
 
-  /* Small circular icon buttons, e.g. show/hide password */
   .neu-icon-btn {
     background-color: var(--base);
-    box-shadow:
-      3px 3px 6px var(--base-dark),
-      -3px -3px 6px var(--base-light);
-    transition: box-shadow 120ms ease;
+    box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
+    transition: box-shadow 150ms ease, transform 150ms ease;
+  }
+  .neu-icon-btn:hover {
+    box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
+  }
+  .neu-icon-btn:active {
+    box-shadow: inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light);
   }
 
-  .neu-icon-btn:active {
-    box-shadow:
-      inset 2px 2px 4px var(--base-dark),
-      inset -2px -2px 4px var(--base-light);
+  /* Lifts a card further on hover — stat tiles, clickable panels */
+  .neu-hover {
+    transition: box-shadow 250ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 250ms cubic-bezier(0.22, 1, 0.36, 1);
   }
+  .neu-hover:hover {
+    box-shadow: 12px 12px 22px var(--shadow-dark), -12px -12px 22px var(--shadow-light);
+    transform: translateY(-3px);
+  }
+  .neu-hover:active {
+    transform: translateY(-1px);
+  }
+
+  /* ---------- Buttons ---------- */
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: #2563eb;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 13.5px;
+    border-radius: 12px;
+    padding: 10px 18px;
+    box-shadow: 4px 4px 10px rgba(37, 99, 235, 0.22), -2px -2px 8px rgba(255, 255, 255, 0.6);
+    transition: box-shadow 200ms ease, transform 150ms ease, background-color 150ms ease;
+  }
+  .btn-primary:hover {
+    background-color: #1d4ed8;
+    box-shadow: 5px 5px 12px rgba(37, 99, 235, 0.28), -2px -2px 8px rgba(255, 255, 255, 0.6);
+  }
+  .btn-primary:active {
+    transform: translateY(1px) scale(0.99);
+  }
+  .btn-primary:disabled {
+    opacity: 0.55;
+    box-shadow: none;
+    transform: none;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: var(--base);
+    color: #1d4ed8;
+    font-weight: 600;
+    font-size: 13.5px;
+    border-radius: 12px;
+    padding: 10px 18px;
+    box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
+    transition: box-shadow 200ms ease, transform 150ms ease;
+  }
+  .btn-secondary:hover {
+    box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
+  }
+  .btn-secondary:active {
+    box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);
+  }
+  .btn-secondary:disabled {
+    opacity: 0.55;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: #fee2e2;
+    color: #b91c1c;
+    font-weight: 600;
+    font-size: 13.5px;
+    border-radius: 12px;
+    padding: 10px 18px;
+    transition: background-color 150ms ease, transform 150ms ease;
+  }
+  .btn-danger:hover {
+    background-color: #fecaca;
+  }
+  .btn-danger:active {
+    transform: scale(0.99);
+  }
+
+  /* ---------- Skeleton / loading ---------- */
+
+  .skeleton {
+    background: linear-gradient(90deg, #eaf1fb 0px, #f8fbff 40px, #eaf1fb 80px);
+    background-size: 600px 100%;
+    animation: shimmer 1.6s infinite linear;
+    border-radius: 12px;
+  }
+}
+
+/* ---------- Motion ---------- */
+
+@keyframes shimmer {
+  0% { background-position: -300px 0; }
+  100% { background-position: 300px 0; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseDot {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35); }
+  70% { box-shadow: 0 0 0 7px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+
+.animate-fade-up {
+  animation: fadeInUp 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.status-dot-live {
+  animation: pulseDot 1.8s infinite;
 }
 
 /* Visible keyboard focus, kept crisp against the soft shadows */
 .neu-focus:focus-visible {
-  outline: 2px solid #b8862e;
+  outline: 2px solid #2563eb;
   outline-offset: 3px;
+  border-radius: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

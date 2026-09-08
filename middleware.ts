@@ -16,13 +16,11 @@ export async function middleware(request: NextRequest) {
         },
         set(name: string, value: string, options: CookieOptions) {
           request.cookies.set({ name, value, ...options });
-          response = NextResponse.next({ request: { headers: request.headers } });
           response.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
           request.cookies.set({ name, value: "", ...options });
-          response = NextResponse.next({ request: { headers: request.headers } });
-          response.cookies.set({ name, value: "", ...options });
+          response.cookies.delete({ name, ...options });
         },
       },
     }
@@ -30,9 +28,13 @@ export async function middleware(request: NextRequest) {
 
   // Refreshes the auth token if it's expired — required for server components
   // to see a valid session on the next request.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (error) {
+    console.error("Middleware auth getUser error:", error);
+  }
 
   const path = request.nextUrl.pathname;
   const isProtected = path.startsWith("/employee") || path.startsWith("/admin");

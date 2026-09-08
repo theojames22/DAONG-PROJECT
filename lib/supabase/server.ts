@@ -17,16 +17,15 @@ export function createClient() {
         set(name: string, value: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value, ...options });
-          } catch {
-            // Called from a Server Component with no request context — safe to
-            // ignore since the middleware below refreshes the session cookie.
+          } catch (error) {
+            console.error("Supabase cookie set error:", error);
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
-            cookieStore.set({ name, value: "", ...options });
-          } catch {
-            // Same as above.
+            cookieStore.delete(name);
+          } catch (error) {
+            console.error("Supabase cookie remove error:", error);
           }
         },
       },

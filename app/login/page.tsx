@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { createClient } from "@/lib/supabase/client";
 import Logo from "@/components/Logo";
 
 export default function LoginPage() {
@@ -11,7 +12,7 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -21,122 +22,193 @@ export default function LoginPage() {
     }
 
     setIsSubmitting(true);
-    // Wire this up to your auth provider (e.g. Supabase auth.signInWithPassword).
-    setTimeout(() => setIsSubmitting(false), 900);
+    try {
+      const supabase = createClient();
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        throw authError;
+      }
+
+      // Fetch role directly from profile so we can redirect without
+      // going through the server-rendered root page (avoids cookie timing issues).
+      const userId = data.session?.user?.id;
+      let destination = "/employee";
+
+      if (userId) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", userId)
+          .single();
+
+        if (profile?.role === "admin") {
+          destination = "/admin";
+        }
+      }
+
+      window.location.href = destination;
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-[400px]">
-        <div className="neu-raised rounded-neu px-8 py-9 sm:px-10 sm:py-10">
-          <Logo />
+    <>
+      {/* Scoped overrides: restore original gold/warm neumorphic look for login only */}
+      <style>{`
+        .login-scope .neu-raised {
+          background-color: #e6ebf2;
+          box-shadow: 8px 8px 16px #b7c1d1, -8px -8px 16px #ffffff;
+        }
+        .login-scope .neu-pressed {
+          background-color: #e6ebf2;
+          box-shadow: inset 5px 5px 10px #b7c1d1, inset -5px -5px 10px #ffffff;
+        }
+        .login-scope .neu-button {
+          background-color: #e6ebf2;
+          box-shadow: 6px 6px 12px #b7c1d1, -6px -6px 12px #ffffff;
+        }
+        .login-scope .neu-icon-btn {
+          background-color: #e6ebf2;
+          box-shadow: 3px 3px 6px #b7c1d1, -3px -3px 6px #ffffff;
+        }
+        .login-scope .neu-focus:focus-visible {
+          outline: 2px solid #b8862e;
+          outline-offset: 3px;
+          border-radius: 8px;
+        }
+        .login-scope .text-ink-muted { color: #71798A; }
+        .login-scope .text-ink { color: #2B3542; }
+      `}</style>
+      <main
+        className="login-scope flex min-h-screen items-center justify-center px-4 py-10"
+        style={{
+          backgroundImage: "url('/images/background.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        <div className="w-full max-w-[400px]">
+          <div className="neu-raised rounded-neu px-8 py-9 sm:px-10 sm:py-10">
+            <Logo />
 
-          <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor="email"
-                className="text-[13px] font-medium text-ink-muted"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                className="neu-pressed neu-focus rounded-2xl px-4 py-3 text-[14px] text-ink placeholder:text-ink-muted/60 outline-none"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
+            <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
                 <label
-                  htmlFor="password"
+                  htmlFor="email"
                   className="text-[13px] font-medium text-ink-muted"
                 >
-                  Password
+                  Email
                 </label>
-                <a
-                  href="#"
-                  className="text-[12.5px] font-medium text-accent-dark hover:underline"
-                >
-                  Forgot password?
-                </a>
-              </div>
-              <div className="relative">
                 <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="neu-pressed neu-focus w-full rounded-2xl px-4 py-3 pr-12 text-[14px] text-ink placeholder:text-ink-muted/60 outline-none"
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  className="neu-pressed neu-focus rounded-2xl px-4 py-3 text-[14px] text-ink placeholder:text-ink-muted/60 outline-none"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="neu-icon-btn neu-focus absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted"
-                >
-                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                </button>
               </div>
-            </div>
 
-            {error && (
-              <p role="alert" className="text-[13px] text-red-600">
-                {error}
-              </p>
-            )}
-
-            <label className="flex select-none items-center gap-2.5 pt-1">
-              <span className="relative flex h-5 w-5 items-center justify-center">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                  className="peer sr-only"
-                />
-                <span className="neu-pressed peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-accent h-5 w-5 rounded-md" />
-                {remember && (
-                  <svg
-                    className="pointer-events-none absolute h-3 w-3"
-                    viewBox="0 0 12 12"
-                    fill="none"
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="password"
+                    className="text-[13px] font-medium text-ink-muted"
                   >
-                    <path
-                      d="M2 6L4.5 8.5L10 3"
-                      stroke="#B8862E"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </span>
-              <span className="text-[13px] text-ink-muted">
-                Keep me signed in
-              </span>
-            </label>
+                    Password
+                  </label>
+                  <a
+                    href="/forgot-password"
+                    className="text-[12.5px] font-medium hover:underline"
+                    style={{ color: "#8F6820" }}
+                  >
+                    Forgot password?
+                  </a>
+                </div>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="neu-pressed neu-focus w-full rounded-2xl px-4 py-3 pr-12 text-[14px] text-ink placeholder:text-ink-muted/60 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="neu-icon-btn neu-focus absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted"
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+              </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="neu-button neu-focus mt-2 rounded-2xl py-3.5 text-[14.5px] font-semibold text-accent-dark disabled:opacity-60"
-            >
-              {isSubmitting ? "Signing in…" : "Sign in"}
-            </button>
-          </form>
+              {error && (
+                <p role="alert" className="text-[13px] text-red-600">
+                  {error}
+                </p>
+              )}
+
+              <label className="flex select-none items-center gap-2.5 pt-1">
+                <span className="relative flex h-5 w-5 items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <span className="neu-pressed peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-[#b8862e] h-5 w-5 rounded-md" />
+                  {remember && (
+                    <svg
+                      className="pointer-events-none absolute h-3 w-3"
+                      viewBox="0 0 12 12"
+                      fill="none"
+                    >
+                      <path
+                        d="M2 6L4.5 8.5L10 3"
+                        stroke="#B8862E"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </span>
+                <span className="text-[13px] text-ink-muted">
+                  Keep me signed in
+                </span>
+              </label>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="neu-button neu-focus mt-2 w-full rounded-2xl py-3.5 text-[14.5px] font-semibold disabled:opacity-60"
+                style={{ color: "#8F6820" }}
+              >
+                {isSubmitting ? "Signing in…" : "Sign in"}
+              </button>
+            </form>
+          </div>
+
+          <p className="mt-6 text-center text-[13px] text-ink-muted">
+            Need access? Contact your administrator.
+          </p>
         </div>
-
-        <p className="mt-6 text-center text-[13px] text-ink-muted">
-          Need access? Contact your administrator.
-        </p>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
 

@@ -1,12 +1,12 @@
-import { LucideIcon } from "lucide-react";
+import { TrendingUp, type LucideIcon } from "lucide-react";
 
 type Tone = "default" | "success" | "warning" | "danger";
 
-const toneStyles: Record<Tone, { icon: string; iconBg: string; value: string }> = {
-  default: { icon: "text-accent-dark", iconBg: "bg-accent-soft", value: "text-ink" },
-  success: { icon: "text-success", iconBg: "bg-success-soft", value: "text-ink" },
-  warning: { icon: "text-warning", iconBg: "bg-warning-soft", value: "text-ink" },
-  danger: { icon: "text-danger", iconBg: "bg-danger-soft", value: "text-ink" },
+const toneStyles: Record<Tone, { icon: string; iconBg: string }> = {
+  default: { icon: "text-accent-dark", iconBg: "bg-accent-soft" },
+  success: { icon: "text-success", iconBg: "bg-success-soft" },
+  warning: { icon: "text-warning", iconBg: "bg-warning-soft" },
+  danger: { icon: "text-danger", iconBg: "bg-danger-soft" },
 };
 
 export default function StatCard({
@@ -28,21 +28,26 @@ export default function StatCard({
 
   return (
     <div
-      className="elev-2 neu-hover animate-fade-up rounded-card px-5 py-5"
+      className="elev-1 neu-hover animate-fade-up rounded-xl px-4 py-5"
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="flex items-start justify-between">
-        <p className="text-[12.5px] font-medium uppercase tracking-wide text-ink-subtle">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-muted">
           {label}
         </p>
         <span
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${styles.iconBg}`}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${styles.iconBg}`}
         >
-          <Icon className={`h-[18px] w-[18px] ${styles.icon}`} strokeWidth={2} />
+          <Icon className={`h-[17px] w-[17px] ${styles.icon}`} strokeWidth={2} />
         </span>
       </div>
-      <p className={`mt-2 text-[26px] font-bold leading-none ${styles.value}`}>{value}</p>
-      {trend && <p className="mt-2 text-[12.5px] text-ink-muted">{trend}</p>}
+      <p className="mt-3.5 text-[28px] font-black leading-none text-ink">{value}</p>
+      {trend && (
+        <p className="mt-2 flex items-center gap-1 text-[12px] text-ink-subtle">
+          <TrendingUp className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+          {trend}
+        </p>
+      )}
     </div>
   );
 }

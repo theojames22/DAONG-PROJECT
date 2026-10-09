@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
+import { createClient } from "@/lib/supabase/server";
+import { ThemeProvider, type Theme } from "@/components/theme/ThemeProvider";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -24,14 +26,43 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Resolve the signed-in user's saved theme so the correct palette is on
+  // <html> from the very first paint (no flash of the wrong theme).
+  let initialTheme: Theme = "light";
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("theme_preference")
+        .eq("id", user.id)
+        .single();
+      if (data?.theme_preference === "dark") {
+        initialTheme = "dark";
+      }
+    }
+  } catch {
+    // Anonymous / no profile yet — keep the light default.
+  }
+
   return (
-    <html lang="en" className={`${fraunces.variable} ${manrope.variable}`}>
-      <body className="font-sans text-ink antialiased">{children}</body>
+    <html
+      lang="en"
+      className={`${fraunces.variable} ${manrope.variable}${
+        initialTheme === "dark" ? " dark" : ""
+      }`}
+    >
+      <body className="font-sans text-ink antialiased">
+        <ThemeProvider initialTheme={initialTheme}>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

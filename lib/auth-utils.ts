@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { USER_ROLES, UserRole } from "@/lib/constants";
+import type { ThemePreference } from "@/lib/types";
 
 export class ProfileMissingError extends Error {
   constructor() {
@@ -9,7 +10,7 @@ export class ProfileMissingError extends Error {
 }
 
 export async function getAuthenticatedProfile() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -34,6 +35,9 @@ export async function getAuthenticatedProfile() {
       role: UserRole;
       position?: string;
       required_weekly_hours: number;
+      profile_picture_url?: string | null;
+      email?: string | null;
+      theme_preference?: ThemePreference;
     },
   };
 }

@@ -3,14 +3,65 @@
 @tailwind utilities;
 
 :root {
+  /* ---------- Light (default) ---------- */
   --base: #f5f9ff;
+  --surface: #ffffff;
+  --base-light: #ffffff;
+  --base-dark: #c7d6ee;
+  --ink: #172033;
+  --ink-muted: #64748b;
+  --ink-subtle: #94a3b8;
+  --accent: #2563eb;
+  --accent-dark: #1d4ed8;
+  --accent-light: #3b82f6;
+  --accent-soft: #eff6ff;
+  --border: rgba(37, 99, 235, 0.08);
+  --success: #15803d;
+  --success-soft: #dcfce7;
+  --warning: #c2410c;
+  --warning-soft: #ffedd5;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
   --shadow-light: rgba(255, 255, 255, 0.9);
   --shadow-dark: rgba(148, 163, 184, 0.18);
-  --accent: #2563eb;
+  /* Overlay tinted over the dashboard background photo */
+  --bg-overlay: rgba(245, 249, 255, 0.9);
+  /* Subtle fills (chips, tab backgrounds) and hairlines */
+  --surface-2: #f1f5f9;
+  --divider: #e2e8f0;
+}
+
+.dark {
+  /* ---------- Dark (class applied to <html>) ---------- */
+  --base: #0f172a;
+  --surface: #1e293b;
+  --base-light: #1e293b;
+  --base-dark: #334155;
+  --ink: #f1f5f9;
+  --ink-muted: #94a3b8;
+  --ink-subtle: #64748b;
+  --accent: #3b82f6;
+  --accent-dark: #60a5fa;
+  --accent-light: #93c5fd;
+  --accent-soft: rgba(59, 130, 246, 0.16);
+  --border: rgba(148, 163, 184, 0.16);
+  --success: #4ade80;
+  --success-soft: rgba(34, 197, 94, 0.16);
+  --warning: #fb923c;
+  --warning-soft: rgba(249, 115, 22, 0.16);
+  --danger: #f87171;
+  --danger-soft: rgba(239, 68, 68, 0.16);
+  --shadow-light: rgba(255, 255, 255, 0.04);
+  --shadow-dark: rgba(0, 0, 0, 0.55);
+  --bg-overlay: rgba(15, 23, 42, 0.92);
+  --surface-2: #273549;
+  --divider: #334155;
 }
 
 body {
   background-color: var(--base);
+  color: var(--ink);
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 @layer components {
@@ -207,5 +258,78 @@ body {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+/* =====================================================================
+   THEME BRIDGE — legacy hardcoded utilities → design tokens
+   ---------------------------------------------------------------------
+   The employee card components (TelemetryCard, WeeklyQuotaCard, Week-
+   TelemetryCard, SubmitDeliverableCard, AuditTrailPanel, StaffHeader,
+   StaffSidebar, TopNavbar) were built with stock slate/white utilities.
+   Rather than hand-editing ~100 class names, those exact utilities are
+   remapped here to the CSS variables above. Light values match Tailwind's
+   defaults pixel-for-pixel, so light mode is visually unchanged; dark
+   mode re-themes them in one place. `dark:` variants declared in
+   components still win (higher specificity), so new components can keep
+   using them.
+   ===================================================================== */
+@layer utilities {
+  .bg-white,
+  .bg-white\/95 {
+    background-color: var(--surface);
+  }
+  .bg-slate-50,
+  .bg-slate-50\/50,
+  .bg-slate-50\/80,
+  .bg-slate-50\/90,
+  .bg-slate-100 {
+    background-color: var(--surface-2);
+  }
+  .bg-slate-200 {
+    background-color: var(--divider);
+  }
+
+  .border-slate-50,
+  .border-slate-100,
+  .border-slate-200,
+  .border-slate-200\/80,
+  .border-slate-200\/90,
+  .border-slate-300 {
+    border-color: var(--divider);
+  }
+  .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--divider);
+  }
+
+  .text-slate-900,
+  .text-slate-800,
+  .text-slate-700 {
+    color: var(--ink);
+  }
+  .text-slate-600,
+  .text-slate-500 {
+    color: var(--ink-muted);
+  }
+  .text-slate-400 {
+    color: var(--ink-subtle);
+  }
+  .placeholder\:text-slate-400::placeholder {
+    color: var(--ink-subtle);
+  }
+
+  .hover\:text-slate-700:hover,
+  .hover\:text-slate-800:hover {
+    color: var(--ink);
+  }
+  .hover\:bg-slate-100:hover {
+    background-color: var(--surface-2);
+  }
+  .hover\:border-slate-300:hover {
+    border-color: var(--accent);
+  }
+
+  .ring-white {
+    --tw-ring-color: var(--surface);
   }
 }

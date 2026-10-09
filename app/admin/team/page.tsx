@@ -22,7 +22,7 @@ export default async function TeamPage() {
     redirect("/employee");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: profiles } = await supabase
     .from("profiles")
     .select("id, full_name, position, role, required_weekly_hours")

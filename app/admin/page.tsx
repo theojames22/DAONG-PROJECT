@@ -26,7 +26,7 @@ export default async function AdminPage() {
     redirect("/employee");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const today = toDateKey(new Date().toISOString());
 
   const [{ data: profiles }, { data: sessions }, { data: outputs }] = await Promise.all([
@@ -78,74 +78,93 @@ export default async function AdminPage() {
   const pendingReviewCount = allOutputs.filter((o) => o.status !== "done").length;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="w-full flex flex-col gap-8 px-6">
       <PageHeader
         title="Admin dashboard"
         description="Monitor attendance, employees, and outputs across your team."
       />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5">
-        <StatCard
-          label="Present today"
-          value={presentCount}
-          icon={UserCheck}
-          tone="success"
-          trend={`of ${employees.length} employees`}
-          delay={0}
-        />
-        <StatCard
-          label="Absent today"
-          value={absentCount}
-          icon={UserX}
-          tone={absentCount > 0 ? "danger" : "default"}
-          delay={60}
-        />
-        <StatCard
-          label="Needs attention"
-          value={needsAttention.length}
-          icon={AlertTriangle}
-          tone={needsAttention.length > 0 ? "warning" : "default"}
-          trend="Missing time-out or output"
-          delay={120}
-        />
-        <StatCard
-          label="Outputs to review"
-          value={pendingReviewCount}
-          icon={FileClock}
-          delay={180}
-        />
+      <div className="neu-raised w-full rounded-card p-3 sm:p-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard
+            label="Present today"
+            value={presentCount}
+            icon={UserCheck}
+            tone="success"
+            trend={`of ${employees.length} employees`}
+            delay={0}
+          />
+          <StatCard
+            label="Absent today"
+            value={absentCount}
+            icon={UserX}
+            tone={absentCount > 0 ? "danger" : "default"}
+            delay={60}
+          />
+          <StatCard
+            label="Needs attention"
+            value={needsAttention.length}
+            icon={AlertTriangle}
+            tone={needsAttention.length > 0 ? "warning" : "default"}
+            trend="Missing time-out or output"
+            delay={120}
+          />
+          <StatCard
+            label="Outputs to review"
+            value={pendingReviewCount}
+            icon={FileClock}
+            delay={180}
+          />
+        </div>
       </div>
 
-      <div className="elev-2 animate-fade-up rounded-card p-6" style={{ animationDelay: "220ms" }}>
-        <h2 className="text-[16px] font-bold text-ink">Needs attention</h2>
-        <p className="mt-0.5 text-[13px] text-ink-muted">
-          Clocked in today but missing a time-out or an output.
-        </p>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 w-full">
+        <div className="lg:col-span-2">
+          <div className="elev-2 animate-fade-up rounded-card p-6 min-h-[600px] flex flex-col" style={{ animationDelay: "220ms" }}>
+            <h2 className="text-[16px] font-bold text-ink">Needs attention</h2>
+            <p className="mt-0.5 text-[13px] text-ink-muted">
+              Clocked in today but missing a time-out or an output.
+            </p>
 
-        {needsAttention.length === 0 ? (
-          <EmptyState
-            icon={UserCheck}
-            title="Nothing to flag"
-            description="Everyone who clocked in today has submitted their output."
-          />
-        ) : (
-          <ul className="mt-4 flex flex-col divide-y divide-border">
-            {needsAttention.map(({ profile, status, hours }) => (
-              <li
-                key={profile.id}
-                className="flex items-center justify-between rounded-md px-2 py-3 transition-colors hover:bg-accent-soft/40"
-              >
-                <div>
-                  <p className="text-[13.5px] font-medium text-ink">{profile.full_name}</p>
-                  <p className="text-[12.5px] text-ink-muted">
-                    {profile.position || "—"} · {formatHours(hours)} logged today
-                  </p>
-                </div>
-                <DayStatusPill status={status} />
-              </li>
-            ))}
-          </ul>
-        )}
+            {needsAttention.length === 0 ? (
+              <EmptyState
+                icon={UserCheck}
+                title="Nothing to flag"
+                description="Everyone who clocked in today has submitted their output."
+              />
+            ) : (
+              <ul className="mt-4 flex flex-col divide-y divide-border flex-1">
+                {needsAttention.map(({ profile, status, hours }) => (
+                  <li
+                    key={profile.id}
+                    className="flex items-center justify-between rounded-md px-2 py-3 transition-colors hover:bg-accent-soft/40"
+                  >
+                    <div>
+                      <p className="text-[13.5px] font-medium text-ink">{profile.full_name}</p>
+                      <p className="text-[12.5px] text-ink-muted">
+                        {profile.position || "—"} · {formatHours(hours)} logged today
+                      </p>
+                    </div>
+                    <DayStatusPill status={status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <div className="elev-2 animate-fade-up rounded-card p-6 h-full min-h-[600px] flex flex-col" style={{ animationDelay: "300ms" }}>
+            <h2 className="text-[16px] font-bold text-ink">Recent Activity</h2>
+            <p className="mt-0.5 mb-4 text-[13px] text-ink-muted">
+              Latest updates from the team.
+            </p>
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-4 bg-accent-soft/20 rounded-lg border border-dashed border-border">
+              <FileClock className="h-8 w-8 text-ink-subtle mb-2" />
+              <p className="text-[13px] text-ink-muted italic">Activity logs will appear here</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

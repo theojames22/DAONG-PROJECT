@@ -21,7 +21,7 @@ export default async function ReviewPage() {
     redirect("/employee");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: outputs }, { data: profiles }] = await Promise.all([
     supabase

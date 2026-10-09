@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Clock, BarChart3, Users, FileCheck2, LogOut } from "lucide-react";
+import { LayoutGrid, Clock, BarChart3, Users, FileCheck2, FolderKanban, LogOut, Menu, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -11,20 +12,34 @@ const links = [
   { href: "/admin/attendance", label: "Attendance", icon: Clock },
   { href: "/admin/compliance", label: "Weekly Compliance", icon: BarChart3 },
   { href: "/admin/team", label: "Team", icon: Users },
+  { href: "/admin/projects", label: "Projects", icon: FolderKanban },
   { href: "/admin/review", label: "Output Review", icon: FileCheck2 },
 ];
 
-export default function Sidebar({ adminName }: { adminName: string }) {
+export default function Sidebar({
+  adminName,
+  adminPosition,
+  adminAvatarUrl,
+}: {
+  adminName: string;
+  adminPosition?: string | null;
+  adminAvatarUrl?: string | null;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
 
-  const initials = adminName
-    .split(" ")
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -33,52 +48,79 @@ export default function Sidebar({ adminName }: { adminName: string }) {
   }
 
   return (
-    <aside className="elev-3 flex h-fit w-full flex-col gap-1 rounded-container p-4 sm:sticky sm:top-6 sm:w-64">
-      <div className="mb-4 flex items-center gap-3 px-2">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[12.5px] font-bold text-accent-dark">
-          {initials || "D"}
-        </span>
-        <div className="min-w-0">
-          <p className="font-display text-[15px] font-bold leading-tight text-ink">Daong</p>
-          <p className="truncate text-[12px] text-ink-muted">{adminName}</p>
+    <>
+      {/* Floating Hamburger Trigger */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="fixed left-4 top-4 z-[60] flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-transform hover:scale-110 active:scale-95 elev-3"
+      >
+        {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </button>
+
+      {/* Sidebar Panel */}
+      <div
+        ref={menuRef}
+        className={`fixed left-4 top-16 bottom-4 z-50 flex w-64 flex-col gap-1 rounded-container p-3 transition-all duration-300 ease-in-out elev-3 overflow-hidden bg-surface ${
+          isOpen
+            ? "translate-x-0 opacity-100 pointer-events-auto"
+            : "-translate-x-72 opacity-0 pointer-events-none"
+        }`}
+      >
+        <div className="mb-6 flex items-center gap-3 px-2">
+          {adminAvatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={adminAvatarUrl}
+              alt={adminName}
+              className="h-9 w-9 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white font-bold">
+              D
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="font-display truncate text-[15px] font-bold leading-tight text-ink">
+              {adminPosition || "Daong"}
+            </p>
+            <p className="truncate text-[12px] text-ink-muted">{adminName}</p>
+          </div>
+        </div>
+
+        <nav className="flex flex-col gap-1 flex-1">
+          {links.map(({ href, label, icon: Icon }) => {
+            const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setIsOpen(false)}
+                className={`neu-focus relative flex items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium transition-all duration-200 ${
+                  active
+                    ? "elev-pressed text-blue-600"
+                    : "text-ink-muted hover:bg-blue-50 hover:text-blue-600"
+                }`}
+              >
+                <Icon
+                  className={`h-[18px] w-[18px] shrink-0 ${active ? "text-blue-600" : "text-ink-subtle"}`}
+                  strokeWidth={2}
+                />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto border-t border-border pt-3">
+          <button
+            onClick={handleSignOut}
+            className="neu-focus flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium text-ink-muted transition-colors hover:bg-red-50 hover:text-red-600"
+          >
+            <LogOut className="h-[18px] w-[18px] shrink-0" strokeWidth={2} />
+            Sign out
+          </button>
         </div>
       </div>
-
-      <nav className="flex flex-col gap-1">
-        {links.map(({ href, label, icon: Icon }) => {
-          const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`neu-focus relative flex items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium transition-all duration-200 ${
-                active
-                  ? "elev-pressed text-accent-dark"
-                  : "text-ink-muted hover:bg-accent-soft/60 hover:text-ink"
-              }`}
-            >
-              {active && (
-                <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-accent" />
-              )}
-              <Icon
-                className={`h-[18px] w-[18px] shrink-0 ${active ? "text-accent" : "text-ink-subtle"}`}
-                strokeWidth={2}
-              />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="mt-4 border-t border-border pt-3">
-        <button
-          onClick={handleSignOut}
-          className="neu-focus flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium text-ink-muted transition-colors hover:bg-danger-soft hover:text-danger"
-        >
-          <LogOut className="h-[18px] w-[18px]" strokeWidth={2} />
-          Sign out
-        </button>
-      </div>
-    </aside>
+    </>
   );
 }

@@ -23,7 +23,7 @@ export default async function CompliancePage() {
     redirect("/employee");
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { start, end, days } = getWeekRange(new Date());
 
   const [{ data: profiles }, { data: sessions }] = await Promise.all([

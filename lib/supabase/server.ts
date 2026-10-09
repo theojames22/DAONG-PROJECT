@@ -1,31 +1,28 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 // Used inside server components / server actions (e.g. app/employee/page.tsx)
 // to read the logged-in user and query the database with their session.
-export function createClient() {
-  const cookieStore = cookies();
+// Note: createClient is async because cookies() must be awaited in Next.js 14+.
+export async function createClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        getAll() {
+          return cookieStore.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
+        setAll(cookiesToSet) {
           try {
-            cookieStore.set({ name, value, ...options });
-          } catch (error) {
-            console.error("Supabase cookie set error:", error);
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.delete(name);
-          } catch (error) {
-            console.error("Supabase cookie remove error:", error);
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Called from a Server Component — cookie writes are not allowed here.
+            // This is safe to ignore; the middleware handles token refresh writes.
           }
         },
       },

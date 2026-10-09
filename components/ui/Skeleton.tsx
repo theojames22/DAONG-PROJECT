@@ -1,12 +1,18 @@
 export function SkeletonStatCards({ count = 4 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="elev-2 rounded-card px-5 py-5">
-          <div className="skeleton h-3 w-20" />
-          <div className="skeleton mt-3 h-7 w-12" />
-        </div>
-      ))}
+    <div className="neu-raised rounded-card p-3 sm:p-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} className="elev-1 rounded-xl px-4 py-5">
+            <div className="flex items-start justify-between">
+              <div className="skeleton h-3 w-20" />
+              <div className="skeleton h-8 w-8 rounded-lg" />
+            </div>
+            <div className="skeleton mt-4 h-7 w-12" />
+            <div className="skeleton mt-3 h-3 w-24" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

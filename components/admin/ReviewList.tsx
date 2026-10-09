@@ -14,7 +14,19 @@ export default function ReviewList({ items }: { items: ReviewItem[] }) {
   const supabase = createClient();
 
   async function setStatus(id: string, status: OutputStatus) {
-    await supabase.from("outputs").update({ status }).eq("id", id);
+    // Record who reviewed it so the approval notification and the
+    // attendance page can name the approver.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    await supabase
+      .from("outputs")
+      .update({
+        status,
+        reviewed_by: user?.id ?? null,
+      })
+      .eq("id", id);
     router.refresh();
   }
 

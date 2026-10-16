@@ -45,13 +45,11 @@ function roundedRect(
 async function renderCardCanvas({
   avatarImg,
   name,
-  code,
   qrImg,
   logoImg,
 }: {
   avatarImg: HTMLImageElement | null;
   name: string;
-  code: string;
   qrImg: HTMLImageElement;
   logoImg: HTMLImageElement | null;
 }): Promise<HTMLCanvasElement> {
@@ -107,11 +105,6 @@ async function renderCardCanvas({
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillText(name.toUpperCase(), cx, 268);
-
-  // ID code
-  ctx.fillStyle = "#64748b";
-  ctx.font = "600 18px Manrope, Arial, sans-serif";
-  ctx.fillText(`ID: ${code}`, cx, 312);
 
   // QR code
   const qrSize = 240;
@@ -173,7 +166,7 @@ export default function IdCardTab({
           setError(
             err instanceof Error
               ? err.message
-              : "Could not load your ID card. If the QR migration hasn't been run, ask your admin."
+              : "Could not load your ID card. If the QR migration hasn't been run, ask your Head."
           );
         }
       }
@@ -197,7 +190,6 @@ export default function IdCardTab({
       const canvas = await renderCardCanvas({
         avatarImg,
         name: userName,
-        code: shortId,
         qrImg,
         logoImg,
       });
@@ -210,7 +202,6 @@ export default function IdCardTab({
         const fallback = await renderCardCanvas({
           avatarImg: null,
           name: userName,
-          code: shortId,
           qrImg,
           logoImg,
         });
@@ -289,7 +280,6 @@ export default function IdCardTab({
         <p className="mt-5 text-center text-[17px] font-extrabold tracking-wide text-ink">
           {(userName || "Employee").toUpperCase()}
         </p>
-        <p className="mt-0.5 text-[12.5px] font-semibold text-ink-muted">ID: {shortId}</p>
         {position && (
           <p className="mt-0.5 text-[11.5px] text-ink-subtle">{position}</p>
         )}
@@ -315,7 +305,7 @@ export default function IdCardTab({
       </div>
 
       <p className="text-[11.5px] text-ink-subtle">
-        Show this card's QR to your admin when clocking in or out.
+        Show this card's QR to your Head when clocking in or out.
       </p>
     </div>
   );

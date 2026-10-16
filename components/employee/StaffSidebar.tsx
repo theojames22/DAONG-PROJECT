@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Clock, LogOut, Menu, X } from "lucide-react";
+import { Clock, Calendar, LogOut, Menu, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const links = [
-  { href: "/employee", label: "Attendance Telemetry", icon: Clock },
+  { href: "/employee", label: "My dashboard", icon: Clock },
+  { href: "/employee/schedule", label: "My Schedule", icon: Calendar },
 ];
 
 export default function StaffSidebar({
@@ -47,7 +48,7 @@ export default function StaffSidebar({
 
   return (
     <>
-      {/* Floating Hamburger Trigger — same pattern as the admin sidebar */}
+      {/* Floating Hamburger Trigger — same pattern as the Head sidebar */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="fixed left-4 top-4 z-[60] flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-transform hover:scale-110 active:scale-95 elev-3"
@@ -100,12 +101,12 @@ export default function StaffSidebar({
                 }}
                 className={`neu-focus relative flex items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium transition-all duration-150 text-left ${
                   active
-                    ? "elev-pressed text-blue-600"
-                    : "text-ink-muted hover:bg-blue-50 hover:text-blue-600"
+                    ? "elev-pressed text-staff-blue-ink"
+                    : "text-ink-muted hover:bg-staff-soft hover:text-staff-blue-ink"
                 }`}
               >
                 <Icon
-                  className={`h-[18px] w-[18px] shrink-0 ${active ? "text-blue-600" : "text-ink-subtle"}`}
+                  className={`h-[18px] w-[18px] shrink-0 ${active ? "text-staff-blue-ink" : "text-ink-subtle"}`}
                   strokeWidth={2}
                 />
                 {label}
@@ -117,7 +118,7 @@ export default function StaffSidebar({
         <div className="mt-auto border-t border-border pt-3">
           <button
             onClick={handleSignOut}
-            className="neu-focus flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium text-ink-muted transition-colors hover:bg-red-50 hover:text-red-600"
+            className="neu-focus flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium text-ink-muted transition-colors hover:bg-staff-danger-soft hover:text-staff-danger"
           >
             <LogOut className="h-[18px] w-[18px] shrink-0" strokeWidth={2} />
             Sign out

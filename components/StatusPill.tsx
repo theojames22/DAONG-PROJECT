@@ -17,12 +17,14 @@ const dayLabel: Record<DayStatus, string> = {
 const outputStyles: Record<OutputStatus, string> = {
   done: "bg-success-soft text-success",
   checking: "bg-warning-soft text-warning",
+  rejected: "bg-danger-soft text-danger",
   pending: "bg-accent-soft text-accent-dark",
 };
 
 const outputLabel: Record<OutputStatus, string> = {
   done: "Done",
   checking: "Checking",
+  rejected: "Rejected",
   pending: "Pending",
 };
 

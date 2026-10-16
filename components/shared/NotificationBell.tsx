@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -16,9 +16,12 @@ import { Notification } from "@/lib/types";
 interface NotificationBellProps {
   userId: string;
   userName: string;
-  /** "admin" deep-links project alerts to their approval page;
-   *  "employee" shows a compose box for messaging an administrator. */
-  role: "admin" | "employee";
+  /** "head" deep-links project alerts to their approval page;
+   *  "staff" shows a compose box for messaging an administrator. */
+  role: "head" | "staff";
+  /** "flat" matches the redesigned head top bar (no embossed surfaces);
+   *  "neu" keeps the original neumorphic styling for the employee side. */
+  variant?: "flat" | "neu";
 }
 
 const PAGE_SIZE = 25;
@@ -36,7 +39,7 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export default function NotificationBell({ userId, userName, role }: NotificationBellProps) {
+export default function NotificationBell({ userId, userName, role, variant = "neu" }: NotificationBellProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
@@ -55,6 +58,9 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
   const [composeSending, setComposeSending] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Per-instance id used to namespace the realtime channel.
+  const instanceId = useId();
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -80,8 +86,11 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
   useEffect(() => {
     fetchNotifications();
 
+    // Unique topic per subscription: if two bells ever render on the
+    // same page, the second must not reuse the first's already-subscribed
+    // channel (Supabase throws on that and takes the page down).
     const channel = supabase
-      .channel(`notifications:${userId}`)
+      .channel(`notifications:${userId}:${instanceId}`)
       .on(
         "postgres_changes",
         {
@@ -146,10 +155,10 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
 
   async function handleNotificationClick(n: Notification) {
     if (!n.is_read) await markRead(n.id);
-    // Only admins deep-link project alerts to the approval page.
-    if (role === "admin" && n.project_id) {
+    // Only Heads deep-link project alerts to the approval page.
+    if (role === "head" && n.project_id) {
       setOpen(false);
-      router.push(`/admin/projects/${n.project_id}`);
+      router.push(`/head/projects/${n.project_id}`);
     }
   }
 
@@ -205,14 +214,28 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
 
   // ---- Render --------------------------------------------------------------
 
+  // The admin top bar uses the flat, modern treatment so the bell and the
+  // settings gear beside it match; the employee dashboard keeps the
+  // original neumorphic look.
+  const flat = variant === "flat";
+  const triggerClass = flat
+    ? "focus-ring relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-slate-500 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:border-accent/30 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300"
+    : "neu-icon-btn neu-focus relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-500 transition-colors hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300";
+  const panelClass = flat
+    ? "card absolute right-0 top-12 z-[100] flex max-h-[520px] w-[360px] flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl border border-slate-200/90"
+    : "neu-raised absolute right-0 top-12 z-[100] flex max-h-[520px] w-[360px] flex-col overflow-hidden rounded-container bg-white dark:bg-slate-800 shadow-2xl";
+  const inputClass = flat
+    ? "focus-ring w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12.5px] text-ink outline-none"
+    : "elev-pressed neu-focus rounded-lg px-2.5 py-1.5 text-[12.5px] text-ink outline-none";
+
   return (
-    <div className="relative" ref={containerRef}>
+    <div className={`relative ${open ? "z-[100]" : "z-10"}`} ref={containerRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Notifications"
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
-        className="neu-icon-btn neu-focus relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-500 transition-colors hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300"
+        className={triggerClass}
       >
         <Bell className="h-[18px] w-[18px]" />
         {unreadCount > 0 && (
@@ -223,17 +246,17 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
       </button>
 
       {open && (
-        <div className="neu-raised absolute right-0 top-12 z-50 flex max-h-[520px] w-[360px] flex-col overflow-hidden rounded-container bg-white dark:bg-slate-800">
+        <div className={panelClass}>
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
               <p className="text-[13.5px] font-bold text-ink">Notifications</p>
               <p className="text-[11.5px] text-ink-muted">
-                {role === "admin" ? `Signed in as ${userName}` : "Messages from your administrator"}
+                {role === "head" ? `Signed in as ${userName}` : "Messages from your administrator"}
               </p>
             </div>
             <div className="flex items-center gap-1">
-              {role === "employee" && (
+              {role === "staff" && (
                 <button
                   type="button"
                   onClick={openCompose}
@@ -257,7 +280,7 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
           </div>
 
           {/* Compose box — employee → admin */}
-          {composing && role === "employee" && (
+          {composing && role === "staff" && (
             <div className="border-b border-border bg-accent-soft/30 px-4 py-3">
               {adminsLoading ? (
                 <div className="flex items-center gap-2 py-2 text-[12.5px] text-ink-muted">
@@ -273,7 +296,7 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
                   <select
                     value={composeTarget}
                     onChange={(e) => setComposeTarget(e.target.value)}
-                    className="elev-pressed neu-focus rounded-lg px-2.5 py-1.5 text-[12.5px] text-ink outline-none"
+                    className={`${inputClass} rounded-lg px-2.5 py-1.5 text-[12.5px] text-ink outline-none`}
                   >
                     {admins.map((a) => (
                       <option key={a.id} value={a.id}>
@@ -289,7 +312,7 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
                         if (e.key === "Enter") sendCompose();
                       }}
                       placeholder="Write a message to your administrator…"
-                      className="elev-pressed neu-focus min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] text-ink placeholder:text-ink-subtle outline-none"
+                      className={`${inputClass} min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] text-ink placeholder:text-ink-subtle outline-none`}
                     />
                     <button
                       type="button"
@@ -320,7 +343,7 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
               <div className="px-4 py-10 text-center">
                 <MessageSquare className="mx-auto mb-2 h-7 w-7 text-ink-subtle" />
                 <p className="text-[13px] text-ink-muted">
-                  {role === "admin"
+                  {role === "head"
                     ? "No notifications yet. Alerts appear here when staff submit projects."
                     : "Nothing yet. You'll see your output approvals and messages here."}
                 </p>
@@ -356,12 +379,12 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
                             {n.message}
                           </p>
 
-                          {isProject && n.project && role === "admin" && (
+                          {isProject && n.project && role === "head" && (
                             <p className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent-dark">
                               View “{n.project.title}” · {n.project.status}
                             </p>
                           )}
-                          {n.project && role === "employee" && (
+                          {n.project && role === "staff" && (
                             <p className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent-dark">
                               {n.project.title} · {n.project.status}
                             </p>
@@ -397,7 +420,7 @@ export default function NotificationBell({ userId, userName, role }: Notificatio
                             if (e.key === "Enter") sendReply(n);
                           }}
                           placeholder={`Reply to ${senderName.split(" ")[0]}…`}
-                          className="elev-pressed neu-focus min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] text-ink placeholder:text-ink-subtle outline-none"
+                          className={`${inputClass} min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] text-ink placeholder:text-ink-subtle outline-none`}
                         />
                         <button
                           type="button"

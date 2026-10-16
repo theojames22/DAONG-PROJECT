@@ -29,6 +29,35 @@
   /* Subtle fills (chips, tab backgrounds) and hairlines */
   --surface-2: #f1f5f9;
   --divider: #e2e8f0;
+
+  /* ---------- Staff pages (My dashboard / My Schedule) ----------
+     These two surfaces carry their own flat light palette. The tokens below
+     let that palette re-theme under `.dark` instead of staying frozen light,
+     and keep body/muted text at WCAG AA in both themes. `--staff-blue*` and
+     `--staff-danger-solid` are theme-independent (defined here only). */
+  --staff-ink: #14213d;
+  --staff-body: #475569;
+  --staff-muted: #64748b;
+  --staff-card: #ffffff;
+  --staff-card-2: #f8fafc;
+  --staff-chip: #f1f5f9;
+  --staff-border: #e6ebf5;
+  --staff-border-strong: #cbd5e1;
+  --staff-soft: #eaf1ff;
+  --staff-success: #166534;
+  --staff-success-soft: #dcfce7;
+  --staff-success-border: #86efac;
+  --staff-warning: #92400e;
+  --staff-warning-soft: #fef3c7;
+  --staff-warning-border: #fef3c7;
+  --staff-danger: #991b1b;
+  --staff-danger-soft: #fee2e2;
+  --staff-danger-border: #fca5a5;
+  /* Channel form so /opacity modifiers keep working. */
+  --staff-blue: 37 99 235; /* #2563eb */
+  --staff-blue-dark: 29 78 216; /* #1d4ed8 */
+  --staff-blue-ink: 37 99 235; /* #2563eb */
+  --staff-danger-solid: #dc2626;
 }
 
 .dark {
@@ -56,6 +85,34 @@
   --bg-overlay: rgba(15, 23, 42, 0.92);
   --surface-2: #273549;
   --divider: #334155;
+
+  /* ---------- Staff pages (dark) ---------- */
+  --staff-ink: #f1f5f9;
+  --staff-body: #cbd5e1;
+  --staff-muted: #94a3b8;
+  --staff-card: #1e293b;
+  --staff-card-2: #273549;
+  --staff-chip: #273549;
+  --staff-border: #334155;
+  --staff-border-strong: #475569;
+  --staff-soft: rgba(59, 130, 246, 0.16);
+  --staff-success: #4ade80;
+  --staff-success-soft: rgba(34, 197, 94, 0.16);
+  --staff-success-border: rgba(74, 222, 128, 0.4);
+  --staff-warning: #fb923c;
+  --staff-warning-soft: rgba(249, 115, 22, 0.16);
+  --staff-warning-border: rgba(251, 146, 60, 0.4);
+  --staff-danger: #f87171;
+  --staff-danger-soft: rgba(239, 68, 68, 0.16);
+  --staff-danger-border: rgba(248, 113, 113, 0.4);
+  --staff-blue-ink: 96 165 250; /* #60a5fa — keep blue text legible on dark */
+}
+
+html {
+  /* Reserve the scrollbar track for good. Locking `body` scroll while the
+     loading overlay (or a modal) is open therefore can never shift the
+     page sideways, and no layout shift is visible when it unlocks. */
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -206,6 +263,26 @@ body {
   .btn-danger:hover {
     background-color: #fecaca;
   }
+
+  .btn-danger:disabled {
+    opacity: 0.55;
+    box-shadow: none;
+    transform: none;
+    cursor: not-allowed;
+  }
+
+  /* Decision buttons (Checking / Approve / Reject) disabled by a final
+     decision or an in-flight save: muted, flat, not-allowed cursor. The
+     :hover repeat keeps btn-primary/btn-danger hover colors from
+     re-coloring a disabled button. */
+  .btn-decision[disabled],
+  .btn-decision[disabled]:hover {
+    background-color: var(--base-dark);
+    color: var(--ink-subtle);
+    box-shadow: none;
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
   .btn-danger:active {
     transform: scale(0.99);
   }
@@ -218,6 +295,186 @@ body {
     animation: shimmer 1.6s infinite linear;
     border-radius: 12px;
   }
+}
+
+/* =====================================================================
+   CLEAN DASHBOARD PRIMITIVES
+   ---------------------------------------------------------------------
+   The admin overview uses a flat, modern card system: white surfaces on
+   a soft blue-grey page, hairline borders and a single soft drop shadow
+   instead of the neumorphic emboss/inset pairs above.
+
+   The neumorphic classes are intentionally LEFT IN PLACE — they are
+   still used by the login, employee dashboard, attendance, compliance,
+   team, projects, QR scanner and ID card screens. Nothing here touches
+   them; the dashboard simply stops using them.
+   ===================================================================== */
+@layer components {
+  /* Base card: white surface, hairline border, one soft shadow. */
+  .card {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 8px 24px -12px rgba(15, 23, 42, 0.12);
+  }
+
+  /* Subtle lift for interactive cards. */
+  .card-hover {
+    transition:
+      box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 220ms ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    border-color: rgba(37, 99, 235, 0.18);
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.05),
+      0 14px 32px -14px rgba(15, 23, 42, 0.2);
+  }
+
+  /* The solid-blue accent card (Outputs to review). */
+  .card-accent {
+    background-color: var(--accent);
+    border: 1px solid transparent;
+    border-radius: 16px;
+    box-shadow:
+      0 1px 2px rgba(29, 78, 216, 0.2),
+      0 12px 28px -12px rgba(37, 99, 235, 0.45);
+  }
+
+  /* Flat buttons — no emboss, no inset press. */
+  .btn-flat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 14px;
+    transition: background-color 150ms ease, color 150ms ease,
+      box-shadow 150ms ease, transform 150ms ease;
+  }
+  .btn-flat:active {
+    transform: translateY(1px);
+  }
+  .btn-flat:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Small status chips. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  /* Soft tile used for icon wells and empty-state glyphs. */
+  .tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background-color: var(--surface-2);
+  }
+
+  /* ---------- Equipment usage log ---------- */
+
+  /* Card per the usage-log spec: white, hairline border,
+     20px radius and a single soft blue-tinted shadow. */
+  .card-usage {
+    background-color: #ffffff;
+    border: 1px solid #e6ebf5;
+    border-radius: 20px;
+    box-shadow:
+      0 1px 2px rgba(15, 27, 61, 0.04),
+      0 10px 30px rgba(37, 99, 235, 0.06);
+  }
+
+  .dark .card-usage {
+    background-color: var(--surface);
+    border-color: var(--divider);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  /* History table: light row dividers, subtle hover tint.
+     (border-separate means borders live on the cells.) */
+  .usage-table tbody tr {
+    transition: background-color 150ms ease;
+  }
+  .usage-table tbody tr:hover {
+    background-color: #f7faff;
+  }
+  .dark .usage-table tbody tr:hover {
+    background-color: var(--surface-2);
+  }
+  .usage-table tbody tr td {
+    border-bottom: 1px solid #e6ebf5;
+  }
+  .dark .usage-table tbody tr td {
+    border-bottom-color: var(--divider);
+  }
+  .usage-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  /* ---------- 24h attendance timeline ---------- */
+
+  /* The hour ruler + every track share one 24-column grid so segments
+     and the "now" marker align across the whole card. */
+  .timeline-grid {
+    display: grid;
+    grid-template-columns: repeat(24, minmax(0, 1fr));
+  }
+
+  /* Renders an inline SVG ring that draws itself on mount. */
+  .ring-draw {
+    transition: stroke-dashoffset 900ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+/* Pulsing "now" marker on the 24h timeline. */
+@keyframes timelineNowPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.32);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
+  }
+}
+.timeline-now-dot {
+  animation: timelineNowPulse 2.2s infinite;
+}
+
+/* Dark mode: same shapes, deeper shadows so cards still separate from
+   the dark page. */
+.dark .card {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 8px 24px -12px rgba(0, 0, 0, 0.55);
+}
+.dark .card-hover:hover {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 14px 32px -14px rgba(0, 0, 0, 0.65);
+}
+.dark .card-accent {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 12px 28px -12px rgba(0, 0, 0, 0.6);
 }
 
 /* ---------- Motion ---------- */
@@ -238,12 +495,530 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .animate-fade-up {
   animation: fadeInUp 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .status-dot-live {
   animation: pulseDot 1.8s infinite;
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-float-gentle {
+  animation: floatGentle 6s ease-in-out infinite;
+}
+
+/* Modal entrance — fades and scales in. !important so it
+   wins over ModalShell's animate-fade-in. */
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-modal-in {
+  animation: modalIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+/* Toast entrance — slides up from the bottom. */
+@keyframes toastUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-toast-up {
+  animation: toastUp 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Faint wave lines drifting along the page bottom. */
+@keyframes waveDrift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-wave-drift {
+  animation: waveDrift 28s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    /* Zero the delay too: a staggered element must never sit invisible
+       waiting for an entrance the user asked not to see. */
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* =====================================================================
+   OPENING ANIMATION · LOADING SCREEN · ENTRANCE SYSTEM
+   ---------------------------------------------------------------------
+   The overlay is mounted once in the root layout, so it appears on every
+   full page load: opening the site, the login page, and the post-login
+   dashboard redirects. Client-side (next/link) navigations do not remount
+   the layout, so nothing flashes on internal links.
+
+   LoadingScreen picks one of two variants on mount:
+     · is-intro  — the cinematic opening. Plays once per browser session
+                   and only when the app is about to reveal the login page.
+     · is-loader — the premium progress loader. Its bar is honest: it ramps
+                   towards 90% and only completes once the document has
+                   genuinely finished loading (with a hard cap, so it can
+                   never trap the user).
+
+   Everything below animates transform/opacity only — no layout work — and
+   the global prefers-reduced-motion block earlier in this file disables
+   all of it.
+   ===================================================================== */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: var(--base);
+  transition: opacity 420ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.loading-overlay.is-exiting {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Clear the artwork *before* the backdrop dissolves, so the hand-off never
+   reads as two overlapping screens — just rising art on a fading field.
+   !important is required to beat the entrance animations' fill-forwards. */
+.loading-overlay.is-exiting .loading-stage,
+.loading-overlay.is-exiting .loading-backdrop,
+.loading-overlay.is-exiting .loading-skip {
+  opacity: 0 !important;
+}
+
+/* ---------- Atmospheric backdrop (shared by both variants) ---------- */
+
+.loading-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+/* Two pools of soft blue light. The fade-in and the endless drift live on
+   separate elements on purpose: one animation can then loop forever
+   without ever replaying the entrance. */
+.loading-aurora {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: min(720px, 128vw);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  animation: loadingFadeIn 1500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.loading-aurora > span {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 9999px;
+  background-image: radial-gradient(
+    closest-side,
+    rgba(37, 99, 235, 0.2),
+    rgba(37, 99, 235, 0.07) 58%,
+    rgba(37, 99, 235, 0) 76%
+  );
+  animation: loadingDrift 24s ease-in-out infinite;
+}
+.loading-aurora-2 {
+  top: 88%;
+  width: min(1180px, 180vw);
+  animation-delay: 220ms;
+}
+.loading-aurora-2 > span {
+  background-image: radial-gradient(
+    closest-side,
+    rgba(59, 130, 246, 0.16),
+    rgba(59, 130, 246, 0) 72%
+  );
+  animation-duration: 32s;
+  animation-direction: reverse;
+}
+
+@keyframes loadingFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes loadingDrift {
+  0%,
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-2.5%, 1.6%, 0) scale(1.06); }
+}
+
+/* Faint water lines settling along the bottom edge. */
+.loading-waves {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: 0;
+  height: 42%;
+  opacity: 0;
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(37, 99, 235, 0.07) 0px,
+    rgba(37, 99, 235, 0.07) 1px,
+    rgba(37, 99, 235, 0) 1px,
+    rgba(37, 99, 235, 0) 20px
+  );
+  -webkit-mask-image: radial-gradient(
+    130% 92% at 50% 108%,
+    #000 18%,
+    rgba(0, 0, 0, 0) 76%
+  );
+  mask-image: radial-gradient(
+    130% 92% at 50% 108%,
+    #000 18%,
+    rgba(0, 0, 0, 0) 76%
+  );
+  animation: loadingWavesIn 1800ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both;
+}
+
+@keyframes loadingWavesIn {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Focal mark ---------- */
+
+.loading-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  padding: 24px;
+  text-align: center;
+  transition: opacity 200ms ease;
+}
+
+.loading-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+/* The loader brings the mark up gently … */
+.loading-stage.is-loader .loading-mark {
+  animation: loadingMarkIn 640ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* … while the opening lets the boat arrive from below the fold. */
+.loading-stage.is-intro .loading-mark {
+  animation: loadingMarkRise 1150ms cubic-bezier(0.16, 1, 0.3, 1) 60ms both;
+}
+
+@keyframes loadingMarkIn {
+  from { opacity: 0; transform: translateY(22px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes loadingMarkRise {
+  from { opacity: 0; transform: translateY(120px) scale(0.9); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Soft blue halo behind the mark. */
+.loading-halo {
+  position: absolute;
+  inset: -30%;
+  border-radius: 9999px;
+  background-image: radial-gradient(
+    closest-side,
+    rgba(37, 99, 235, 0.24),
+    rgba(37, 99, 235, 0.06) 62%,
+    rgba(37, 99, 235, 0) 78%
+  );
+  opacity: 0;
+  animation: loadingHaloIn 1300ms cubic-bezier(0.22, 1, 0.36, 1) 380ms both;
+}
+
+@keyframes loadingHaloIn {
+  from { opacity: 0; transform: scale(0.68); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.loading-frame {
+  position: relative;
+  display: block;
+  width: 128px;
+  height: 128px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background-image: linear-gradient(180deg, #ffffff, #eef4ff);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 20px 48px -20px rgba(37, 99, 235, 0.55),
+    inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+}
+.loading-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* One soft pass of light across the mark, clipped to the circle. */
+.loading-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+.loading-sweep::after {
+  content: "";
+  position: absolute;
+  top: -45%;
+  bottom: -45%;
+  left: 0;
+  width: 42%;
+  background-image: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-130%) skewX(-16deg);
+  animation: loadingSweep 1250ms cubic-bezier(0.4, 0, 0.2, 1) 780ms both;
+}
+
+@keyframes loadingSweep {
+  from { opacity: 0; transform: translateX(-130%) skewX(-16deg); }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  to   { opacity: 0; transform: translateX(330%) skewX(-16deg); }
+}
+
+.loading-tagline {
+  max-width: 34ch;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  opacity: 0;
+  animation: loadingTaglineIn 900ms cubic-bezier(0.22, 1, 0.36, 1) 880ms both;
+}
+
+@keyframes loadingTaglineIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Slim progress indicator ---------- */
+
+.loading-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(320px, 72vw);
+  opacity: 0;
+  animation: loadingProgressIn 700ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
+}
+
+@keyframes loadingProgressIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.loading-track {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: rgba(37, 99, 235, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
+}
+
+.loading-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background-image: linear-gradient(90deg, var(--accent-light), var(--accent));
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.45);
+  will-change: width;
+}
+
+/* Indeterminate mode — used when real progress cannot be measured, so no
+   fabricated percentage is ever presented as the truth. */
+.loading-track.is-indeterminate .loading-fill {
+  width: 36%;
+  animation: loadingIndeterminate 1300ms cubic-bezier(0.45, 0, 0.35, 1) infinite;
+}
+
+@keyframes loadingIndeterminate {
+  from { transform: translateX(-115%); }
+  to   { transform: translateX(310%); }
+}
+
+.loading-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+/* Discreet escape hatch — the opening is short, but nobody is locked in. */
+.loading-skip {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-muted);
+  background-color: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  opacity: 0;
+  animation: loadingFadeIn 500ms ease 1000ms both;
+  transition: color 180ms ease, box-shadow 180ms ease;
+}
+.loading-skip:hover {
+  color: var(--accent);
+  box-shadow:
+    0 2px 6px rgba(15, 23, 42, 0.08),
+    inset 0 0 0 1px rgba(37, 99, 235, 0.24);
+}
+.loading-skip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+/* The pill is white-on-light by default; in dark mode the translucent white
+   would leave `--ink-muted` (a light grey) unreadable on it. */
+.dark .loading-skip {
+  color: var(--ink);
+  background-color: rgba(30, 41, 59, 0.82);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(148, 163, 184, 0.2);
+}
+.dark .loading-skip:hover {
+  color: var(--accent-light);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(96, 165, 250, 0.4);
+}
+
+/* ---------- Login entrance ----------
+   Gated on `data-app-ready`, which LoadingScreen flips the exact frame the
+   overlay starts fading — so the card's entrance and the fade read as one
+   continuous motion instead of two separate steps. */
+@keyframes loginEnter {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes loginItemIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+html[data-app-ready="true"] .login-enter {
+  /* The 90ms beat lets the overlay's artwork clear first, so the card rises
+     into a clean field instead of on top of the loading text. */
+  animation: loginEnter 620ms cubic-bezier(0.2, 0.8, 0.2, 1) 90ms both;
+}
+
+html[data-app-ready="true"] .login-item {
+  animation: loginItemIn 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--login-delay, 40ms);
+}
+
+/* ---------- Dashboard entrance ----------
+   Plays when a page mounts — and never on a router.refresh(), a Supabase
+   realtime update, a clock tick or a local state change, because those all
+   re-render without remounting. Mark a block `enter-up` and give it one of
+   the `enter-d*` steps to place it in the cascade.
+
+   Gated on `data-app-ready` so a full page load doesn't run the whole
+   cascade behind the loading overlay: the dashboard rises exactly as the
+   overlay hands over. Internal navigations already have the flag set, so
+   they animate on mount like normal. If the flag is never set, no
+   animation applies at all — the content simply renders visible. */
+@keyframes enterUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+html[data-app-ready="true"] .enter-up {
+  animation: enterUp 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--enter-delay, 0ms);
+}
+
+.enter-d1 { --enter-delay: 70ms; }
+.enter-d2 { --enter-delay: 140ms; }
+.enter-d3 { --enter-delay: 210ms; }
+.enter-d4 { --enter-delay: 280ms; }
+.enter-d5 { --enter-delay: 350ms; }
+.enter-d6 { --enter-delay: 420ms; }
+
+/* ---------- Micro-interaction: soft lift for cards ---------- */
+.card-lift {
+  transition:
+    transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.card-lift:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.05),
+    0 18px 40px -18px rgba(37, 99, 235, 0.35);
+}
+.dark .card-lift:hover {
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    0 18px 40px -18px rgba(0, 0, 0, 0.7);
 }
 
 /* Visible keyboard focus, kept crisp against the soft shadows */
@@ -253,10 +1028,19 @@ body {
   border-radius: 8px;
 }
 
+/* Same ring under a neutral name, for components that no longer carry
+   any neumorphic styling. */
+.focus-ring:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
   }
 }

@@ -40,7 +40,7 @@ begin
   values (
     new.id,
     new.raw_user_meta_data ->> 'full_name',
-    coalesce(new.raw_user_meta_data ->> 'role', 'employee'),
+    coalesce(new.raw_user_meta_data ->> 'role', 'staff'),
     new.email
   );
   return new;
@@ -75,14 +75,14 @@ create index if not exists projects_created_at_idx on public.projects (created_a
 
 alter table public.projects enable row level security;
 
--- Employees can see their own projects; admins can see all of them.
+-- Employees can see their own projects; Heads (administrators) can see all.
 drop policy if exists "Users can view their own projects" on public.projects;
 create policy "Users can view their own projects"
   on public.projects for select
   using (auth.uid() = submitted_by);
 
-drop policy if exists "Admins can view all projects" on public.projects;
-create policy "Admins can view all projects"
+drop policy if exists "Heads can view all projects" on public.projects;
+create policy "Heads can view all projects"
   on public.projects for select
   using (public.is_admin());
 
@@ -93,14 +93,14 @@ create policy "Users can insert their own projects"
   on public.projects for insert
   with check (auth.uid() = submitted_by and status = 'pending');
 
--- Only admins can approve / reject / annotate.
-drop policy if exists "Admins can update any project" on public.projects;
-create policy "Admins can update any project"
+-- Only Heads (administrators) can approve / reject / annotate.
+drop policy if exists "Heads can update any project" on public.projects;
+create policy "Heads can update any project"
   on public.projects for update
   using (public.is_admin());
 
-drop policy if exists "Admins can delete any project" on public.projects;
-create policy "Admins can delete any project"
+drop policy if exists "Heads can delete any project" on public.projects;
+create policy "Heads can delete any project"
   on public.projects for delete
   using (public.is_admin());
 
@@ -121,7 +121,7 @@ create trigger on_projects_updated
   for each row execute procedure public.set_updated_at();
 
 -- ---------------------------------------------------------------------
--- 3. NOTIFICATIONS — alert loop + cross-messaging between staff/admin.
+-- 3. NOTIFICATIONS — alert loop + cross-messaging between staff/head.
 --    project_id is optional: null = direct message, set = thread about
 --    a specific project (enables deep-linking to its approval page).
 -- ---------------------------------------------------------------------
@@ -175,8 +175,8 @@ create policy "Receivers can delete their notifications"
   using (auth.uid() = receiver_id);
 
 -- ---------------------------------------------------------------------
--- 4. AUTO-ALERT — every time a project is submitted, notify all admins.
---    Runs as security definer so it can read the admins list + insert
+-- 4. AUTO-ALERT — every time a project is submitted, notify all Heads.
+--    Runs as security definer so it can read the Heads list + insert
 --    regardless of the submitter's own RLS visibility.
 -- ---------------------------------------------------------------------
 create or replace function public.notify_admins_on_project()
@@ -199,8 +199,8 @@ begin
          submitter_name || ' submitted a project for approval: ' || new.title,
          new.id
     from public.profiles a
-   where a.role = 'admin'
-     and a.id <> new.submitted_by;  -- don't notify an admin of their own upload
+   where a.role = 'head'
+     and a.id <> new.submitted_by;  -- don't notify a Head of their own upload
 
   return new;
 end;
@@ -297,9 +297,9 @@ create policy "Users update own project files"
 -- ---------------------------------------------------------------------
 -- Employee submits a project (status 'pending')
 --   → on_project_submitted trigger fires
---   → one notification row per admin, project_id set for deep-linking
---   → admin's bell lights up in realtime
---   → clicking it opens /admin/projects/{id}
---   → admin approves/rejects; replying inserts a notification back to
+--   → one notification row per Head, project_id set for deep-linking
+--   → Head's bell lights up in realtime
+--   → clicking it opens /head/projects/{id}
+--   → Head approves/rejects; replying inserts a notification back to
 --     the employee with the same project_id, keeping the thread together
 -- =====================================================================

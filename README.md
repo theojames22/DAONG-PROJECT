@@ -43,13 +43,20 @@ daong-attendance-tracker/
 
 Fonts: **Fraunces** for the "Daong" wordmark only, **Manrope** for all UI text.
 
+## Roles & routing
+
+There are exactly two roles, stored in `profiles.role`:
+
+| Role | Dashboard | Clock in/out | QR code | Required hours |
+|---|---|---|---|---|
+| **Head** (`head`) | `/head` — team, attendance, reports, schedule, equipment, approvals | no | no | none |
+| **Staff** (`staff`) | `/employee` — clock in/out, outputs, personal schedule | yes | yes | weekly target |
+
+`app/page.tsx` and `app/login/page.tsx` route by `role` (Head → `/head`,
+Staff → `/employee`). `middleware.ts` protects `/*` and `/head/*`.
+
 ## What's next
 
-- Wire `handleSubmit` in `app/login/page.tsx` to your auth provider (e.g. Supabase
-  `auth.signInWithPassword`). Currently it's a stub with a fake delay.
-- The role toggle (Employee / Admin) currently just sets local state — once auth is
-  wired, use it to route to `/employee` or `/admin` after a successful sign-in, or
-  drop it and derive the role from the user's record instead.
 - Add a real "Forgot password?" flow.
 - Reuse `.neu-raised`, `.neu-pressed`, `.neu-button`, `.neu-track`, `.neu-icon-btn`
   from `globals.css` for the dashboard components (table rows, status pills, the

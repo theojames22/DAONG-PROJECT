@@ -1,0 +1,325 @@
+/* =========================================================================
+   Workforce page (Head → Team) — motion & polish.
+   Purely page-scoped: every rule lives under the .page wrapper or the
+   .modal dialog class (dialogs portal to <body>, so they carry .modal
+   directly). Nothing here leaks into other screens.
+   Only transform / opacity / color / background / box-shadow transitions
+   (plus the progress-bar fill width, which the page is allowed to animate).
+   ========================================================================= */
+
+.page {
+  position: relative;
+}
+
+/* Content sits above the decorative waves (which are positioned, z-index 0). */
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ---------- 1. Entrance ---------- */
+
+@keyframes wfRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.enter {
+  animation: wfRise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--wf-delay, 0s);
+}
+
+/* ---------- 2. Background waves ---------- */
+
+.waves {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 360px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wavesSvg {
+  position: absolute;
+  left: -48px;
+  bottom: 0;
+  width: calc(100% + 96px);
+  height: 100%;
+  animation: wfWaveDrift 18s ease-in-out infinite alternate;
+}
+
+@keyframes wfWaveDrift {
+  from {
+    transform: translateX(-24px);
+  }
+  to {
+    transform: translateX(24px);
+  }
+}
+
+.stroke {
+  fill: none;
+  stroke: #c9d9f5;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* ---------- 3. Hover & press ---------- */
+
+/* Employee cards lift on hover / keyboard focus (the entrance wrapper is a
+   separate element, so its held transform never fights this lift). */
+.card {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.card:hover,
+.card:focus-within {
+  transform: translateY(-5px);
+  box-shadow: 0 16px 34px -12px rgba(15, 23, 42, 0.2),
+    0 8px 18px -10px rgba(37, 99, 235, 0.22);
+}
+
+/* Leaderboard rows slide in slightly and tint. */
+.lbRow {
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+.lbRow:hover {
+  transform: translateX(3px);
+  background-color: #f4f8fe;
+}
+
+/* List-view rows tint on hover. */
+.listRow {
+  transition: transform 0.2s ease, background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+.listRow:hover {
+  background-color: #f7faff;
+}
+
+/* Primary action (+ Add employee). */
+.btnPrimary {
+  box-shadow: 0 6px 16px -8px rgba(37, 99, 235, 0.5);
+  transition: transform 0.2s ease, background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.btnPrimary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background-color: #1f55d6;
+  box-shadow: 0 14px 28px -10px rgba(37, 99, 235, 0.62);
+}
+.btnPrimary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* "Scan Staff QR" style attach button. */
+.btnQr {
+  transition: transform 0.2s ease, background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+.btnQr:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background-color: #e3ecff;
+  border-color: #9fbbf2;
+}
+
+/* Ghost buttons (Edit). */
+.btnGhost {
+  transition: transform 0.2s ease, background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+.btnGhost:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background-color: #eef3ff;
+  border-color: #b7cbf3;
+}
+
+/* Round icon buttons (settings, notifications). */
+.iconBtn {
+  transition: transform 0.2s ease, color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.iconBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+.iconBtn:hover:not(:disabled),
+.iconBtn:hover:not(:disabled) svg {
+  color: #2563eb;
+}
+
+/* Wraps the shared NotificationBell without altering it — just gives its
+   trigger the same lift + blue-icon hover the other round buttons get.
+   (> div > button targets only the bell trigger, not the dropdown.) */
+.iconBtnScope {
+  display: inline-flex;
+}
+.iconBtnScope > div > button {
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.iconBtnScope > div > button:hover {
+  transform: translateY(-2px);
+}
+.iconBtnScope > div > button:hover,
+.iconBtnScope > div > button:hover svg {
+  color: #2563eb;
+}
+
+/* Disabled: muted, immovable. */
+.page button:disabled,
+.modal button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.page button:disabled {
+  transform: none !important;
+}
+
+/* ---------- 4. Live indicator dots ---------- */
+
+.liveDot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: inherit;
+  opacity: 0;
+  pointer-events: none;
+  animation: wfPulseRing 2s ease-out infinite;
+}
+
+@keyframes wfPulseRing {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+/* ---------- 5. Progress + data visuals ---------- */
+
+/* Bar fill width animates 1s ease; width itself is always the true %.
+   (Only the progress fill is ever allowed to transition width.) */
+.barFill {
+  transition: width 1s ease;
+}
+
+/* Circular progress ring draws itself on load. --wf-circ is the full
+   circumference (empty ring) and --wf-target the true value's offset. */
+.ringValue {
+  transition: stroke-dashoffset 1s ease;
+  animation: wfRingDraw 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s backwards;
+}
+
+@keyframes wfRingDraw {
+  from {
+    stroke-dashoffset: var(--wf-circ, 75.4);
+  }
+  to {
+    stroke-dashoffset: var(--wf-target, 0);
+  }
+}
+
+/* ---------- 6. Segmented view toggle ---------- */
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9999px;
+  background-color: #eaf1ff;
+  border: 1px solid #dbe8ff;
+}
+
+.segBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  width: 42px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: #9aa8bd;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease,
+    border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.segBtn:hover:not(.segBtnActive) {
+  color: #475569;
+}
+.segBtnActive {
+  background-color: #ffffff;
+  border-color: #2563eb;
+  color: #2563eb;
+  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.28);
+}
+
+/* ---------- 9. Inputs ---------- */
+
+.field {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.field:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px #e1ebff;
+}
+
+/* ---------- 8. Modals ---------- */
+
+/* Doubled class so it beats ModalShell's own animate-fade-in regardless of
+   stylesheet order. ModalShell keeps handling Escape, backdrop-click and
+   scroll-lock. */
+.modal.modal {
+  animation: wfModalIn 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+}
+
+@keyframes wfModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---------- Visible keyboard focus (3px #8FB0FF, 2px offset) ---------- */
+
+.page.page :is(button, a, input, select, textarea):focus-visible,
+.modal.modal :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid #8fb0ff;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ---------- Reduced motion: zero animation, identical layout ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after,
+  .modal,
+  .modal *,
+  .modal *::before,
+  .modal *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

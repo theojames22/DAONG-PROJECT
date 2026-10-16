@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect, type CSSProperties } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Logo from "@/components/Logo";
+import BrandLoader, { BrandLoaderBackdrop } from "@/components/BrandLoader";
+
+/** One step of the login entrance cascade — see .login-item in globals.css. */
+const step = (ms: number) => ({ "--login-delay": `${ms}ms` }) as CSSProperties;
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -11,6 +15,19 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Held between "credentials accepted" and the dashboard actually loading,
+  // so the redirect never shows a bare, unstyled gap.
+  const [navigating, setNavigating] = useState(false);
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("remembered_email");
+    const savedPassword = localStorage.getItem("remembered_password");
+    if (savedEmail && savedPassword) {
+      setEmail(savedEmail);
+      setPassword(savedPassword);
+      setRemember(true);
+    }
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,23 +50,38 @@ export default function LoginPage() {
         throw authError;
       }
 
-      // Fetch role directly from profile so we can redirect without
-      // going through the server-rendered root page (avoids cookie timing issues).
+      if (remember) {
+        localStorage.setItem("remembered_email", email);
+        localStorage.setItem("remembered_password", password);
+      } else {
+        localStorage.removeItem("remembered_email");
+        localStorage.removeItem("remembered_password");
+      }
+
+      // Fetch role + position directly from the profile so we can
+      // redirect without going through the server-rendered root
+      // page (avoids cookie timing issues). Role decides the
+      // dashboard: Head → /head, Staff → /employee.
       const userId = data.session?.user?.id;
       let destination = "/employee";
 
       if (userId) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, position")
           .eq("id", userId)
           .single();
 
-        if (profile?.role === "admin") {
-          destination = "/admin";
+        if (profile?.role === "head" || profile?.position === "head") {
+          destination = "/head";
         }
       }
 
+      // Hand the transition over to the same branded loader the app opens
+      // with. The dashboard document renders the identical overlay, so the
+      // two sides join up with no unstyled gap in between.
+      setNavigating(true);
+      await new Promise((resolve) => window.setTimeout(resolve, 110));
       window.location.href = destination;
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred. Please try again.");
@@ -89,19 +121,21 @@ export default function LoginPage() {
       <main
         className="login-scope flex min-h-screen items-center justify-center px-4 py-10"
         style={{
-          backgroundImage: "url('/images/background.jpg')",
+          backgroundImage: "url('/images/new background.png')",
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundAttachment: "fixed",
           backgroundRepeat: "no-repeat",
         }}
       >
-        <div className="w-full max-w-[400px]">
+        <div className="login-enter w-full max-w-[400px]">
           <div className="neu-raised rounded-neu px-8 py-9 sm:px-10 sm:py-10">
-            <Logo />
+            <div className="login-item" style={step(60)}>
+              <Logo />
+            </div>
 
             <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-5">
-              <div className="flex flex-col gap-2">
+              <div className="login-item flex flex-col gap-2" style={step(120)}>
                 <label
                   htmlFor="email"
                   className="text-[13px] font-medium text-ink-muted"
@@ -114,12 +148,12 @@ export default function LoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
+                  placeholder="Enter your Username"
                   className="neu-pressed neu-focus rounded-2xl px-4 py-3 text-[14px] text-ink placeholder:text-ink-muted/60 outline-none"
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="login-item flex flex-col gap-2" style={step(180)}>
                 <div className="flex items-center justify-between">
                   <label
                     htmlFor="password"
@@ -157,12 +191,19 @@ export default function LoginPage() {
               </div>
 
               {error && (
-                <p role="alert" className="text-[13px] text-red-600">
+                <p
+                  role="alert"
+                  className="login-item text-[13px] text-red-600"
+                  style={step(220)}
+                >
                   {error}
                 </p>
               )}
 
-              <label className="flex select-none items-center gap-2.5 pt-1">
+              <label
+                className="login-item flex select-none items-center gap-2.5 pt-1"
+                style={step(260)}
+              >
                 <span className="relative flex h-5 w-5 items-center justify-center">
                   <input
                     type="checkbox"
@@ -195,19 +236,43 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="neu-button neu-focus mt-2 w-full rounded-2xl py-3.5 text-[14.5px] font-semibold disabled:opacity-60"
-                style={{ color: "#8F6820" }}
+                className="login-item neu-button neu-focus mt-2 w-full rounded-2xl py-3.5 text-[14.5px] font-semibold disabled:opacity-60"
+                style={{ ...step(320), color: "#8F6820" }}
               >
                 {isSubmitting ? "Signing in…" : "Sign in"}
               </button>
             </form>
           </div>
 
-          <p className="mt-6 text-center text-[13px] text-ink-muted">
+          <p
+            className="login-item mt-6 text-center text-[13px] text-ink-muted"
+            style={step(380)}
+          >
             Need access? Contact your administrator.
           </p>
         </div>
       </main>
+
+      {/* Post-login bridge: the same loader the app opens with, so signing in
+          and arriving at the dashboard read as one continuous transition
+          instead of a bare reload. */}
+      {navigating && (
+        <div
+          className="loading-overlay"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <BrandLoaderBackdrop />
+          {/* No measurable progress here, so the bar stays indeterminate
+              rather than pretending to know a percentage. */}
+          <BrandLoader
+            variant="loader"
+            indeterminate
+            label="Signing you in…"
+          />
+        </div>
+      )}
     </>
   );
 }

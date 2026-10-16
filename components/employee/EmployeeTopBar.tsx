@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import NotificationBell from "@/components/shared/NotificationBell";
 import SettingsModal from "@/components/shared/SettingsModal";
 
@@ -10,6 +11,7 @@ export interface EmployeeTopBarProps {
   employeeEmail: string | null;
   employeeAvatarUrl: string | null;
   initialTheme: "light" | "dark";
+  employeePosition?: string | null;
 }
 
 export default function EmployeeTopBar({
@@ -18,14 +20,27 @@ export default function EmployeeTopBar({
   employeeEmail,
   employeeAvatarUrl,
   initialTheme,
+  employeePosition,
 }: EmployeeTopBarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const pathname = usePathname();
+
+  // On the employee dashboard and schedule pages, StaffHeader embeds
+  // the cluster directly (also covers the head's schedule page, which
+  // reuses MyScheduleView)
+  if (
+    pathname === "/employee" ||
+    pathname === "/employee/schedule" ||
+    pathname === "/head/schedule"
+  ) {
+    return null;
+  }
 
   return (
     <>
-      {/* Fixed top-right action cluster — mirrors the admin dashboard */}
+      {/* Fixed top-right action cluster — mirrors the Head dashboard */}
       <div className="fixed right-4 top-4 z-[60] flex items-center gap-2.5">
-        <NotificationBell userId={employeeId} userName={employeeName} role="employee" />
+        <NotificationBell userId={employeeId} userName={employeeName} role="staff" />
         <button
           type="button"
           onClick={() => setSettingsOpen(true)}
@@ -45,6 +60,7 @@ export default function EmployeeTopBar({
         userEmail={employeeEmail}
         userAvatarUrl={employeeAvatarUrl}
         initialTheme={initialTheme}
+        position={employeePosition}
       />
     </>
   );

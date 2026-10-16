@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Play, Square } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Session } from "@/lib/types";
-import { totalHours, formatHours, toDateKey } from "@/lib/attendance";
+import { totalHours, formatHours, toDateKey, dayStartISO, dayEndISO } from "@/lib/attendance";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -24,15 +24,13 @@ export default function TimeClock({ employeeId }: { employeeId: string }) {
 
   async function loadToday() {
     const today = toDateKey(new Date().toISOString());
-    const startOfDay = `${today}T00:00:00`;
-    const endOfDay = `${today}T23:59:59`;
 
     const { data, error: fetchError } = await supabase
       .from("sessions")
       .select("id, employee_id, time_in, time_out")
       .eq("employee_id", employeeId)
-      .gte("time_in", startOfDay)
-      .lte("time_in", endOfDay)
+      .gte("time_in", dayStartISO(today))
+      .lte("time_in", dayEndISO(today))
       .order("time_in", { ascending: true });
 
     if (fetchError) {

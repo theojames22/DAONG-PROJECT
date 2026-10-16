@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedProfile, ProfileMissingError } from "@/lib/auth-utils";
 import { USER_ROLES } from "@/lib/constants";
-import { getWeekRange, toDateKey } from "@/lib/attendance";
+import { getWeekRange, toDateKey, dayStartISO, dayEndISO } from "@/lib/attendance";
 import { Session, Output } from "@/lib/types";
 import StaffDashboard from "@/components/employee/StaffDashboard";
 
@@ -20,8 +20,8 @@ export default async function EmployeePage() {
     redirect("/login");
   }
 
-  if (profile.role !== USER_ROLES.EMPLOYEE) {
-    redirect("/admin");
+  if (profile.role !== USER_ROLES.STAFF) {
+    redirect("/head");
   }
 
   const supabase = await createClient();
@@ -35,16 +35,16 @@ export default async function EmployeePage() {
         .from("sessions")
         .select("id, employee_id, time_in, time_out")
         .eq("employee_id", user.id)
-        .gte("time_in", `${start}T00:00:00`)
-        .lte("time_in", `${end}T23:59:59`)
+        .gte("time_in", dayStartISO(start))
+        .lte("time_in", dayEndISO(end))
         .order("time_in", { ascending: true }),
 
       supabase
         .from("sessions")
         .select("id, employee_id, time_in, time_out")
         .eq("employee_id", user.id)
-        .gte("time_in", `${today}T00:00:00`)
-        .lte("time_in", `${today}T23:59:59`)
+        .gte("time_in", dayStartISO(today))
+        .lte("time_in", dayEndISO(today))
         .order("time_in", { ascending: true }),
 
       supabase

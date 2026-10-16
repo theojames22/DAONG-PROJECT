@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // POST /api/settings/email
-// Updates any signed-in user's own Gmail. Works for both admins and
+// Updates any signed-in user's own Gmail. Works for both Heads and
 // employees — the update targets only auth.uid() = the caller.
 // This MUST run server-side with the service-role key: writing to
 // auth.users cannot be done from the browser with the anon key, and a

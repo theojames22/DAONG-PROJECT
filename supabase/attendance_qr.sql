@@ -1,5 +1,5 @@
 -- =====================================================================
--- ATTENDANCE QR MIGRATION — admin camera scanning for staff time-in/out
+-- ATTENDANCE QR MIGRATION — staff QR tokens + admin resolve/stamp RPCs.
 -- Run this in Supabase → SQL Editor → New query → paste → Run.
 -- Re-runnable: every statement is guarded.
 --
@@ -7,6 +7,7 @@
 --   1. a unique qr_token per employee (printed as their QR code)
 --   2. admin-only RPCs: resolve a scanned token → confirm → stamp
 --   3. realtime on sessions/outputs so the admin list updates live
+-- The Head "Scan Staff QR" tool on /head/workforce drives #2 end-to-end.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -48,7 +49,7 @@ begin
     select p.id, p.full_name, p.position
       from public.profiles p
      where p.qr_token = v_token
-       and public.is_admin()          -- only admins may resolve tokens
+       and public.is_admin()          -- only Heads may resolve tokens
      limit 1;
 end;
 $$;
@@ -73,7 +74,7 @@ declare
   v_session_id uuid;
 begin
   if not public.is_admin() then
-    raise exception 'Admin access required';
+    raise exception 'Head access required';
   end if;
 
   if p_open_session_id is null then
@@ -139,7 +140,7 @@ $$;
 -- =====================================================================
 -- FLOW
 --   1. Employee opens "My QR" on their dashboard → renders their token
---   2. Admin clicks "Scan staff QR" on /admin/attendance → camera opens
+--   2. Admin clicks "Scan Staff QR" on /head/workforce → camera opens
 --   3. Scan → resolve_qr_token → confirm card → tap
 --   4. admin_toggle_attendance stamps time-in, or time-out if open
 --   5. Both dashboards update in real time (sessions/outputs are live)

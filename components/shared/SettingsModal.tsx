@@ -6,6 +6,7 @@ import { Camera, Check, Loader2, Lock, Moon, ShieldCheck, Sun, User, X } from "l
 import { createClient } from "@/lib/supabase/client";
 import { useTheme, type Theme } from "@/components/theme/ThemeProvider";
 import IdCardTab from "./IdCardTab";
+import ModalShell from "./ModalShell";
 
 interface SettingsModalProps {
   open: boolean;
@@ -15,6 +16,12 @@ interface SettingsModalProps {
   userEmail: string | null;
   userAvatarUrl: string | null;
   initialTheme: Theme;
+  /**
+   * The signed-in account's position. The "QR Code ID" tab is only shown
+   * to accounts that clock in/out (Staff). Heads are administrators and
+   * have no QR code of their own.
+   */
+  position?: string | null;
 }
 
 type Feedback = { type: "success" | "error"; text: string } | null;
@@ -27,6 +34,7 @@ export default function SettingsModal({
   userEmail,
   userAvatarUrl,
   initialTheme,
+  position,
 }: SettingsModalProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -34,9 +42,12 @@ export default function SettingsModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<"personal" | "id">("personal");
 
+  // Heads don't clock in/out, so they have no QR code to show.
+  const showQrTab = position !== "head";
+
   // Profile section state
   const [name, setName] = useState(userName);
-  const [position, setPosition] = useState("");
+  const [profilePosition, setProfilePosition] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(userAvatarUrl ?? "");
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -65,7 +76,7 @@ export default function SettingsModal({
         .eq("id", userId)
         .single();
       if (cancelled || !data) return;
-      setPosition(data.position ?? "");
+      setProfilePosition(data.position ?? "");
       setAvatarUrl(data.profile_picture_url ?? "");
     })();
     return () => {
@@ -127,7 +138,7 @@ export default function SettingsModal({
         .from("profiles")
         .update({
           full_name: name.trim() || null,
-          position: position.trim() || null,
+          position: profilePosition.trim() || null,
         })
         .eq("id", userId);
       if (error) throw error;
@@ -226,28 +237,24 @@ export default function SettingsModal({
   // ---- Render --------------------------------------------------------------
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
-        onClick={onClose}
-        aria-hidden
-      />
-
-      {/* Panel */}
-      <div className="neu-raised relative z-10 flex max-h-[88vh] w-full max-w-[560px] flex-col overflow-hidden rounded-container bg-white dark:bg-slate-800">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="font-display text-[16px] font-bold text-ink">Settings</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close settings"
-            className="neu-focus rounded-lg p-1.5 text-ink-muted hover:text-ink"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      maxWidthClass="max-w-[560px]"
+      ariaLabelledBy="settings-modal-title"
+    >
+      {/* Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
+        <h2 id="settings-modal-title" className="font-display text-[16px] font-bold text-ink">Settings</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close settings"
+          className="neu-focus rounded-lg p-1.5 text-ink-muted hover:text-ink"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
         {/* Tabs */}
         <div className="flex border-b border-border px-5">
@@ -263,18 +270,20 @@ export default function SettingsModal({
             <User className="h-3.5 w-3.5" />
             Personal Info
           </button>
-          <button
-            type="button"
-            onClick={() => setTab("id")}
-            className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
-              tab === "id"
-                ? "border-accent text-accent"
-                : "border-transparent text-ink-muted hover:text-ink"
-            }`}
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            QR Code ID
-          </button>
+          {showQrTab && (
+            <button
+              type="button"
+              onClick={() => setTab("id")}
+              className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
+                tab === "id"
+                  ? "border-accent text-accent"
+                  : "border-transparent text-ink-muted hover:text-ink"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              QR Code ID
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -283,7 +292,7 @@ export default function SettingsModal({
               <IdCardTab
                 userId={userId}
                 userName={userName}
-                position={position}
+                position={profilePosition}
                 avatarUrl={avatarUrl}
                 shortId={userId.slice(0, 4).toUpperCase()}
               />
@@ -363,8 +372,8 @@ export default function SettingsModal({
                   Position
                 </span>
                 <input
-                  value={position}
-                  onChange={(e) => setPosition(e.target.value)}
+                  value={profilePosition}
+                  onChange={(e) => setProfilePosition(e.target.value)}
                   placeholder="e.g. System Administrator"
                   className="elev-pressed neu-focus rounded-xl px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle outline-none"
                 />
@@ -540,7 +549,6 @@ export default function SettingsModal({
             </>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

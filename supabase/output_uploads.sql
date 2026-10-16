@@ -4,7 +4,8 @@
 -- Re-runnable: guarded with `if not exists`. Purely additive — no drops.
 --
 -- Extends the existing `outputs` table (the deliverable/task record that
--- Output Review, Attendance, and the admin dashboard already read) so
+-- the admin Attendance page, the admin dashboard, the employee audit
+-- trail and the telemetry route already read) so
 -- file and screenshot submissions can store their real upload:
 --
 --   outputs.employee_id  → profiles.id   (FK, already exists)
@@ -29,7 +30,7 @@ alter table public.outputs
 --   2. Link        → saves attachment_url only
 --      File/Image  → uploads to project-files/{employee_id}/deliverables/…
 --                     then saves public URL + storage_path + file_name
---   3. Row lands in `outputs` with status 'pending' and today's date
---   4. Admin reviews it on /admin/review → approval alert fires to the
---      employee (see employee_notifications.sql)
+--   3. Row lands in `outputs` with status 'pending' and today's date —
+--      it feeds attendance presence, the employee audit trail, the
+--      telemetry route, and the admin Attendance page
 -- =====================================================================

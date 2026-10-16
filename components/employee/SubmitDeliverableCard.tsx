@@ -2,22 +2,24 @@
 
 import { useRef, useState } from "react";
 import {
-  Rocket,
   Link as LinkIcon,
   FileText,
   Image as ImageIcon,
   UploadCloud,
-  Send,
   Lock,
   Clipboard,
   Loader2,
   CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { toDateKey } from "@/lib/attendance";
 
 interface SubmitDeliverableCardProps {
   employeeId: string;
+  /** Employee has clocked in today — required before an output may be submitted. */
+  clockedIn: boolean;
   onSubmitted?: () => void;
 }
 
@@ -26,13 +28,14 @@ type TabKey = "link" | "file" | "image";
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 const tabs: { key: TabKey; label: string; icon: typeof LinkIcon }[] = [
-  { key: "link", label: "Link URL", icon: LinkIcon },
-  { key: "file", label: "Document / File", icon: FileText },
+  { key: "link", label: "Link", icon: LinkIcon },
+  { key: "file", label: "Document / file", icon: FileText },
   { key: "image", label: "Screenshot", icon: ImageIcon },
 ];
 
 export default function SubmitDeliverableCard({
   employeeId,
+  clockedIn,
   onSubmitted,
 }: SubmitDeliverableCardProps) {
   const router = useRouter();
@@ -52,8 +55,6 @@ export default function SubmitDeliverableCard({
     type: "success" | "error";
     text: string;
   } | null>(null);
-
-  // ---- Helpers -------------------------------------------------------------
 
   function switchTab(tab: TabKey) {
     setActiveTab(tab);
@@ -108,23 +109,31 @@ export default function SubmitDeliverableCard({
     acceptFile(e.dataTransfer.files?.[0] ?? null);
   }
 
-  // ---- Submit --------------------------------------------------------------
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatusMessage(null);
 
-    if (!verified) {
+    // Gate: Locked check
+    if (!clockedIn) {
       setStatusMessage({
         type: "error",
-        text: "Please acknowledge the corporate integrity verification checkbox.",
+        text: "You haven't clocked in today. You can submit work once today's attendance is recorded.",
       });
       return;
     }
-    if (!title.trim()) {
+
+    // Required fields check: List exactly what is missing
+    const missing: string[] = [];
+    if (!title.trim()) missing.push("a deliverable name");
+    if (activeTab === "link" && !resourceLink.trim()) missing.push("a link");
+    if (activeTab === "file" && !file) missing.push("a document or file");
+    if (activeTab === "image" && !file) missing.push("a screenshot");
+    if (!verified) missing.push("the integrity confirmation");
+
+    if (missing.length > 0) {
       setStatusMessage({
         type: "error",
-        text: "Please provide a deliverable name or title.",
+        text: `Still needed: ${missing.join(", ")}.`,
       });
       return;
     }
@@ -134,30 +143,12 @@ export default function SubmitDeliverableCard({
     let fileName: string | null = null;
 
     if (activeTab === "link") {
-      const trimmed = resourceLink.trim();
-      if (!trimmed) {
-        setStatusMessage({
-          type: "error",
-          text: "Please paste the resource / production link.",
-        });
-        return;
-      }
-      attachmentUrl = trimmed;
+      attachmentUrl = resourceLink.trim();
     } else {
-      if (!file) {
-        setStatusMessage({
-          type: "error",
-          text:
-            activeTab === "image"
-              ? "Please attach a screenshot."
-              : "Please attach a document or file.",
-        });
-        return;
-      }
+      if (!file) return;
 
       setIsSubmitting(true);
       try {
-        // Upload into the employee's own folder (enforced by storage RLS).
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         storagePath = `${employeeId}/deliverables/${Date.now()}-${safeName}`;
         fileName = file.name;
@@ -188,19 +179,46 @@ export default function SubmitDeliverableCard({
     }
 
     setIsSubmitting(true);
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = toDateKey(new Date().toISOString());
 
-    const { error } = await supabase.from("outputs").insert({
-      employee_id: employeeId,
-      date: todayStr,
-      title: title.trim(),
-      attachment_type: activeTab,
-      attachment_url: attachmentUrl,
-      storage_path: storagePath,
-      file_name: fileName,
-      status: "pending",
-      reviewer_notes: notes.trim() || null,
-    });
+    const { data: insertedOutput, error } = await supabase
+      .from("outputs")
+      .insert({
+        employee_id: employeeId,
+        date: todayStr,
+        title: title.trim(),
+        attachment_type: activeTab,
+        attachment_url: attachmentUrl,
+        storage_path: storagePath,
+        file_name: fileName,
+        status: "pending",
+        reviewer_notes: notes.trim() || null,
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (insertedOutput?.id) {
+      try {
+        const { data: existing } = await supabase
+          .from("projects")
+          .select("id")
+          .eq("source_output_id", insertedOutput.id)
+          .maybeSingle();
+
+        if (!existing) {
+          await supabase.from("projects").insert({
+            title: title.trim() || `Output ${todayStr}`,
+            description: notes.trim() || null,
+            file_url: attachmentUrl,
+            status: "pending",
+            submitted_by: employeeId,
+            source_output_id: insertedOutput.id,
+          });
+        }
+      } catch {
+        // Mirrored by backend trigger if configured
+      }
+    }
 
     setIsSubmitting(false);
 
@@ -214,10 +232,10 @@ export default function SubmitDeliverableCard({
 
     setStatusMessage({
       type: "success",
-      text: "Deliverable submitted for supervisor audit trail.",
+      text: "Deliverable submitted successfully! It is now in review under My submissions.",
     });
 
-    // Reset inputs
+    // Reset fields
     setTitle("");
     setResourceLink("");
     setNotes("");
@@ -229,29 +247,62 @@ export default function SubmitDeliverableCard({
     router.refresh();
   }
 
-  // ---- Render --------------------------------------------------------------
-
   const acceptAttr =
     activeTab === "image" ? "image/*" : ".pdf,.doc,.docx,.zip,.png,.jpg,.jpeg,.webp";
 
   return (
-    <div className="neu-raised rounded-neu p-5 flex flex-col justify-between h-full">
+    <div className="flex h-full flex-col justify-between rounded-[20px] border border-staff-border bg-white p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,27,61,.04),0_10px_30px_rgba(37,99,235,.06)] enter-up enter-d3">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {/* Card Header */}
+        {/* Card Title & Description */}
         <div>
           <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-bold text-ink">
-              Submit Work Output & Deliverables
+            <h2 className="text-base font-bold text-staff-ink">
+              Submit your work
             </h2>
-            <Rocket className="h-4 w-4 text-accent" />
+            <span className="text-xs font-semibold text-staff-body">
+              Review workflow
+            </span>
           </div>
-          <p className="mt-0.5 text-[12px] text-ink-muted">
-            Link your output commits, specifications, or artifacts for supervisor audit.
+          <p className="mt-1 text-xs text-staff-body">
+            Upload your deliverables or resource links for your supervisor to audit.
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="elev-pressed flex rounded-xl p-1" role="tablist">
+        {/* State Banner: Locked (Amber) vs Unlocked (Green) */}
+        {!clockedIn ? (
+          <div className="flex items-center gap-2.5 rounded-xl border border-staff-warning-border bg-staff-warning-soft p-3 text-xs font-semibold text-staff-warning">
+            <Lock className="h-4 w-4 shrink-0 text-staff-warning" />
+            <span>
+              You haven&apos;t clocked in today. You can submit work once today&apos;s attendance is recorded.
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5 rounded-xl border border-staff-success-border bg-staff-success-soft p-3 text-xs font-semibold text-staff-success">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-staff-success" />
+            <span>You&apos;re clocked in. Ready to submit deliverables for review.</span>
+          </div>
+        )}
+
+        {/* Status Message / Inline Error Banner */}
+        {statusMessage && (
+          <div
+            className={`flex items-start gap-2.5 rounded-xl p-3 text-xs font-medium border ${
+              statusMessage.type === "success"
+                ? "bg-staff-success-soft text-staff-success border-staff-success-border"
+                : "bg-staff-danger-soft text-staff-danger border-staff-danger-border"
+            }`}
+          >
+            {statusMessage.type === "success" ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-staff-success" />
+            ) : (
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-staff-danger" />
+            )}
+            <p className="flex-1 leading-relaxed">{statusMessage.text}</p>
+          </div>
+        )}
+
+        {/* Segmented Control for 3 Input Types */}
+        <div className="flex rounded-xl bg-slate-100 p-1 border border-staff-border" role="tablist">
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -259,10 +310,10 @@ export default function SubmitDeliverableCard({
               role="tab"
               aria-selected={activeTab === key}
               onClick={() => switchTab(key)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
                 activeTab === key
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-ink-muted hover:text-accent-dark"
+                  ? "bg-white text-staff-blue-ink shadow-sm"
+                  : "text-staff-body hover:text-staff-ink"
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -271,189 +322,190 @@ export default function SubmitDeliverableCard({
           ))}
         </div>
 
-        {/* Input 1: Deliverable Name / Title — shared across tabs */}
-        <div>
-          <label className="block text-[11px] font-bold text-ink-muted uppercase tracking-wider mb-1">
-            Deliverable Name / Title
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Sprint 14 UI Components & Architecture Staging"
-            className="elev-pressed neu-focus w-full rounded-xl px-3 py-2 text-xs font-medium text-ink placeholder:text-ink-subtle outline-none transition-all"
-          />
-        </div>
-
-        {/* Tab-specific input */}
-        {activeTab === "link" && (
+        {/* Disabled overlay wrapper when locked */}
+        <div className={`flex flex-col gap-3.5 transition-opacity ${!clockedIn ? "opacity-80 pointer-events-none" : ""}`}>
+          {/* Field 1: Deliverable Name */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-bold text-ink-muted uppercase tracking-wider">
-                Resource / Production Link
-              </label>
-              <button
-                type="button"
-                onClick={handlePaste}
-                className="neu-focus inline-flex items-center gap-1 text-[11px] font-semibold text-accent-dark hover:underline"
-              >
-                <Clipboard className="h-3 w-3" />
-                <span>Paste Clipboard</span>
-              </button>
-            </div>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-ink-subtle">
-                <LinkIcon className="h-3.5 w-3.5" />
-              </span>
-              <input
-                type="url"
-                value={resourceLink}
-                onChange={(e) => setResourceLink(e.target.value)}
-                placeholder="https://figma.com/file/xp381q/Design-System-Production"
-                className="elev-pressed neu-focus w-full rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-ink placeholder:text-ink-subtle outline-none transition-all"
-              />
-            </div>
-          </div>
-        )}
-
-        {(activeTab === "file" || activeTab === "image") && (
-          <div>
-            <label className="block text-[11px] font-bold text-ink-muted uppercase tracking-wider mb-1">
-              {activeTab === "image" ? "Screenshot" : "Document / File"}
+            <label className="block text-xs font-bold text-staff-ink mb-1.5">
+              Deliverable name
             </label>
-
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-colors ${
-                isDragging
-                  ? "border-accent bg-accent-soft/40"
-                  : "border-border bg-accent-soft/30 hover:border-accent"
-              }`}
-            >
-              {file ? (
-                <div className="flex flex-col items-center gap-2">
-                  {previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={previewUrl}
-                      alt="Preview"
-                      className="max-h-32 rounded-lg border border-border"
-                    />
-                  ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-accent">
-                      <FileText className="h-5 w-5" />
-                    </div>
-                  )}
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-ink">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                    <span className="max-w-[220px] truncate">{file.name}</span>
-                  </p>
-                  <p className="text-[10.5px] text-ink-subtle">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB · click to replace
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-accent mb-2">
-                    <UploadCloud className="h-5 w-5" />
-                  </div>
-                  <p className="text-xs text-ink-muted">
-                    Drag &amp; drop {activeTab === "image" ? "your screenshot" : "your file"}{" "}
-                    here, or <span className="font-semibold text-accent-dark underline">browse</span>
-                  </p>
-                  <p className="mt-0.5 text-[10.5px] text-ink-subtle">
-                    {activeTab === "image"
-                      ? "PNG, JPG, WEBP or GIF up to 50MB"
-                      : "PDF, PNG, JPG, ZIP up to 50MB"}
-                  </p>
-                </>
-              )}
+            <div className="relative">
               <input
-                ref={fileInputRef}
-                type="file"
-                accept={acceptAttr}
-                className="hidden"
-                onChange={(e) => acceptFile(e.target.files?.[0] ?? null)}
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={!clockedIn}
+                placeholder="e.g. Sprint 14 UI Components & Feature Staging"
+                className="w-full rounded-xl border border-staff-border bg-white px-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
               />
+              {!clockedIn && (
+                <Lock className="absolute right-3 top-3 h-3.5 w-3.5 text-staff-muted" />
+              )}
             </div>
           </div>
-        )}
 
-        {/* Supervisor Notes — shared across tabs */}
-        <div>
-          <label className="block text-[11px] font-bold text-ink-muted uppercase tracking-wider mb-1">
-            Supervisor Delivery Notes &amp; Scope Completed
+          {/* Field 2: Tab-specific input */}
+          {activeTab === "link" && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-staff-ink">
+                  Resource link
+                </label>
+                <button
+                  type="button"
+                  onClick={handlePaste}
+                  disabled={!clockedIn}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-staff-blue-ink hover:underline"
+                >
+                  <Clipboard className="h-3 w-3" />
+                  <span>Paste from clipboard</span>
+                </button>
+              </div>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-staff-muted">
+                  <LinkIcon className="h-3.5 w-3.5" />
+                </span>
+                <input
+                  type="url"
+                  value={resourceLink}
+                  onChange={(e) => setResourceLink(e.target.value)}
+                  disabled={!clockedIn}
+                  placeholder="https://figma.com/file/... or https://github.com/..."
+                  className="w-full rounded-xl border border-staff-border bg-white pl-9 pr-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                />
+                {!clockedIn && (
+                  <Lock className="absolute right-3 top-3 h-3.5 w-3.5 text-staff-muted" />
+                )}
+              </div>
+            </div>
+          )}
+
+          {(activeTab === "file" || activeTab === "image") && (
+            <div>
+              <label className="block text-xs font-bold text-staff-ink mb-1.5">
+                {activeTab === "image" ? "Screenshot upload" : "Document / file upload"}
+              </label>
+
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (clockedIn) setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={clockedIn ? handleDrop : undefined}
+                onClick={() => clockedIn && fileInputRef.current?.click()}
+                className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all ${
+                  isDragging
+                    ? "border-blue-500 bg-staff-soft"
+                    : "border-staff-border bg-slate-50/50 hover:border-blue-400 hover:bg-staff-soft"
+                }`}
+              >
+                {file ? (
+                  <div className="flex flex-col items-center gap-2">
+                    {previewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="max-h-28 rounded-lg border border-staff-border object-contain"
+                      />
+                    ) : (
+                      <FileText className="h-8 w-8 text-staff-blue-ink" />
+                    )}
+                    <p className="text-xs font-bold text-staff-ink">{file.name}</p>
+                    <p className="text-[10px] text-staff-body">
+                      {(file.size / (1024 * 1024)).toFixed(2)} MB · Click or drag to replace
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5 py-2">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-staff-soft text-staff-blue-ink">
+                      <UploadCloud className="h-5 w-5" />
+                    </div>
+                    <p className="text-xs font-semibold text-staff-ink">
+                      Click to choose or drop {activeTab === "image" ? "screenshot" : "file"}
+                    </p>
+                    <p className="text-[10.5px] text-staff-body">
+                      {activeTab === "image" ? "PNG, JPG, WEBP" : "PDF, DOCX, ZIP, IMAGES"} up to 50MB
+                    </p>
+                  </div>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={acceptAttr}
+                  onChange={(e) => acceptFile(e.target.files?.[0] ?? null)}
+                  className="hidden"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Field 3: Notes for supervisor */}
+          <div>
+            <label className="block text-xs font-bold text-staff-ink mb-1.5">
+              Notes for your supervisor <span className="font-normal text-staff-body">(optional)</span>
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              disabled={!clockedIn}
+              rows={2}
+              placeholder="Provide context, deliverables notes, or review guidance..."
+              className="w-full rounded-xl border border-staff-border bg-white px-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all resize-none"
+            />
+          </div>
+
+          {/* Field 4: Corporate integrity verification checkbox */}
+          <label className="flex items-start gap-2.5 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={verified}
+              onChange={(e) => setVerified(e.target.checked)}
+              disabled={!clockedIn}
+              className="mt-0.5 h-4 w-4 rounded border-staff-border text-staff-blue-ink focus:ring-blue-500/20"
+            />
+            <span className="text-xs font-medium text-staff-body leading-tight">
+              I confirm this work is complete, original, and ready for supervisor review.
+            </span>
           </label>
-          <textarea
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Components matched with design tokens. All unit tests passing."
-            className="elev-pressed neu-focus w-full rounded-xl p-2.5 text-xs font-medium text-ink placeholder:text-ink-subtle outline-none transition-all resize-none"
-          />
         </div>
 
-        {/* Checkbox */}
-        <label className="flex items-start gap-2.5 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={verified}
-            onChange={(e) => setVerified(e.target.checked)}
-            className="neu-focus mt-0.5 h-4 w-4 rounded border-base-dark text-accent focus:ring-accent"
-          />
-          <span className="text-[11px] leading-relaxed text-ink-muted">
-            I verify that this deliverable directly correlates to today's active shift and
-            adheres to the corporate integrity standard.
-          </span>
-        </label>
-
-        {/* Feedback message */}
-        {statusMessage && (
-          <p
-            className={`flex items-center gap-1.5 text-xs font-semibold ${
-              statusMessage.type === "success" ? "text-success" : "text-danger"
-            }`}
-          >
-            {statusMessage.type === "success" && (
-              <CheckCircle2 className="h-3.5 w-3.5" />
-            )}
-            {statusMessage.text}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="btn-primary neu-focus w-full"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>{file && activeTab !== "link" ? "Uploading…" : "Submitting…"}</span>
-            </>
+        {/* Action Button: Disabled when locked, Blue when unlocked */}
+        <div className="pt-2">
+          {!clockedIn ? (
+            <button
+              type="button"
+              disabled
+              className="w-full rounded-xl border border-staff-border bg-slate-100 py-3 px-5 text-xs font-bold text-staff-body cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <Lock className="h-4 w-4" />
+              <span>Clock in to submit</span>
+            </button>
           ) : (
-            <>
-              <Send className="h-3.5 w-3.5" />
-              <span>Submit Deliverable for Review</span>
-            </>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full rounded-xl bg-staff-blue hover:bg-staff-blue-dark py-3 px-5 text-xs font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:bg-staff-blue-dark disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Submitting deliverable...</span>
+                </>
+              ) : (
+                <span>Submit for review</span>
+              )}
+            </button>
           )}
-        </button>
-      </form>
+        </div>
 
-      {/* Security Footer */}
-      <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-[10px] text-ink-subtle font-medium">
-        <span className="inline-flex items-center gap-1">
-          <Lock className="h-3 w-3" />
-          <span>Cryptographic Timestamp Enabled</span>
-        </span>
-        <span className="font-mono text-ink-subtle">SHA-256 Verified</span>
-      </div>
+        {/* Footer line with SHA-256 integrity note */}
+        <p className="text-[10.5px] text-center text-staff-body pt-1">
+          Submissions are timestamped when sent · SHA-256 verification enabled.
+        </p>
+      </form>
     </div>
   );
 }

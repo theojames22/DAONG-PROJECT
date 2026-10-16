@@ -1,26 +1,31 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ShieldCheck } from "lucide-react";
 import { Profile, Session, Output } from "@/lib/types";
 import { toDateKey } from "@/lib/attendance";
 import EmployeeTopBar from "./EmployeeTopBar";
 import StaffSidebar from "./StaffSidebar";
 import StaffHeader from "./StaffHeader";
-import WeeklyQuotaCard from "./WeeklyQuotaCard";
-import WeekTelemetryCard, { DayTelemetryItem, DaySessionItem } from "./WeekTelemetryCard";
+import StaffTopMetricsCards from "./StaffTopMetricsCards";
 import SubmitDeliverableCard from "./SubmitDeliverableCard";
+import WeekTelemetryCard, { DayTelemetryItem, DaySessionItem } from "./WeekTelemetryCard";
 import AuditTrailPanel from "./AuditTrailPanel";
 
 interface TelemetryMetrics {
+  // Attendance hours — raw recorded history.
   hoursToday: number;
   hoursThisWeek: number;
   requiredWeeklyHours: number;
-  percentMet: number;
-  remainingHours: number;
+  hoursLoggedPercent: number;
   coreShift: number;
   standbyHours: number;
   overtimeHours: number;
+  // Credited hours — what counts toward the weekly requirement.
+  creditedHours: number;
+  creditedPercentMet: number;
+  creditedRemainingHours: number;
+  creditedDays: number;
+  attendanceDays: number;
 }
 
 interface TelemetryApiResponse {
@@ -42,6 +47,7 @@ interface StaffDashboardProps {
 
 export default function StaffDashboard({
   profile,
+  initialTodaySessions = [],
 }: StaffDashboardProps) {
   // 1. Global selectedDate state
   const [selectedDate, setSelectedDate] = useState<string>(() =>
@@ -52,8 +58,8 @@ export default function StaffDashboard({
   const [loading, setLoading] = useState<boolean>(true);
 
   // 2. Fetch from the Backend API: /api/telemetry?date=${selectedDate}
-  const fetchTelemetry = useCallback(async (date: string) => {
-    setLoading(true);
+  const fetchTelemetry = useCallback(async (date: string, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const response = await fetch(`/api/telemetry?date=${date}`);
       if (!response.ok) {
@@ -64,48 +70,71 @@ export default function StaffDashboard({
     } catch (error) {
       console.error("Telemetry fetch error:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
-  // 1. useEffect Hook: Triggers every time the global selectedDate state changes
+  // useEffect Hook: Triggers every time the global selectedDate state changes
   useEffect(() => {
     fetchTelemetry(selectedDate);
   }, [selectedDate, fetchTelemetry]);
 
-  // Refetch helper for child action triggers (e.g. submit deliverable, clock in/out)
+  // Refetch helper for child action triggers (e.g. submit deliverable)
   const handleRefetch = () => {
     fetchTelemetry(selectedDate);
   };
 
-  // 3. Dynamically populate data from the fetched state (no hardcoded static values)
+  // Dynamically populate data from the fetched state (no hardcoded static values)
   const metrics = telemetryData?.metrics ?? {
     hoursToday: 0,
     hoursThisWeek: 0,
     requiredWeeklyHours: profile.required_weekly_hours || 40,
-    percentMet: 0,
-    remainingHours: profile.required_weekly_hours || 40,
+    hoursLoggedPercent: 0,
     coreShift: 0,
     standbyHours: 0,
     overtimeHours: 0,
+    creditedHours: 0,
+    creditedPercentMet: 0,
+    creditedRemainingHours: profile.required_weekly_hours || 40,
+    creditedDays: 0,
+    attendanceDays: 0,
   };
 
   const daySessions = telemetryData?.daySessions ?? [];
   const weekTelemetry = telemetryData?.weekTelemetry ?? [];
   const outputs = telemetryData?.outputs ?? [];
 
+  // Rule: an output may only be submitted once the employee has clocked in
+  // today. The server props carry today's sessions on load; the telemetry
+  // response refreshes them whenever the selected date is today.
+  const todayKey = toDateKey(new Date().toISOString());
+  const clockedInToday =
+    Boolean(telemetryData?.isClockedIn) ||
+    initialTodaySessions.length > 0 ||
+    (telemetryData?.selectedDate === todayKey && daySessions.length > 0);
+
+  // Quietly poll every 15s while viewing today if not clocked in yet
+  useEffect(() => {
+    if (clockedInToday || selectedDate !== todayKey) return;
+    const interval = setInterval(() => {
+      fetchTelemetry(selectedDate, true);
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [clockedInToday, selectedDate, todayKey, fetchTelemetry]);
+
   return (
-    <div className="min-h-screen bg-base font-sans antialiased text-ink">
-      {/* Top-right notification + settings cluster — same as admin */}
+    <div className="min-h-screen font-sans antialiased text-staff-ink">
+      {/* Top bar controls */}
       <EmployeeTopBar
         employeeId={profile.id}
         employeeName={profile.full_name || "Alex Mercer"}
         employeeEmail={profile.email ?? null}
         employeeAvatarUrl={profile.profile_picture_url ?? null}
         initialTheme={profile.theme_preference ?? "light"}
+        employeePosition={profile.position}
       />
 
-      {/* Floating hamburger sidebar — same pattern as the admin dashboard */}
+      {/* Floating hamburger sidebar */}
       <StaffSidebar
         fullName={profile.full_name || "Alex Mercer"}
         position={profile.position}
@@ -113,59 +142,55 @@ export default function StaffDashboard({
         avatarUrl={profile.profile_picture_url}
       />
 
-      <main className="mx-auto max-w-[1720px] px-4 pt-16 sm:px-6 lg:px-8 lg:pt-20 lg:pb-8 flex flex-col gap-5">
-        {/* Staff Header with Date Picker & Live Station Clock */}
+      <main className="mx-auto max-w-[1720px] px-4 pt-16 sm:px-6 lg:px-8 lg:pt-8 lg:pb-12 flex flex-col gap-6">
+        {/* Staff Header with time-aware greeting, 40px Page Title, Live Clock & Active Date */}
         <StaffHeader
+          title="My dashboard"
+          description="Track your recorded attendance, credited hours, and submit your work."
+          fullName={profile.full_name || "Alex Mercer"}
+          employeeId={profile.id}
+          employeeEmail={profile.email ?? null}
+          employeeAvatarUrl={profile.profile_picture_url ?? null}
+          initialTheme={profile.theme_preference ?? "light"}
           selectedDate={selectedDate}
           onSelectDate={(newDate) => setSelectedDate(newDate)}
+          employeePosition={profile.position}
         />
 
-        {/* Workstation Grid — Quota Stack, Submit Deliverable, Audit Trail */}
-        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-12 gap-5 items-start">
-          {/* Column 1: Weekly Targets & Attendance */}
-          <div className="2xl:col-span-4 flex flex-col gap-4 w-full">
-            {/* Dynamic Weekly Target Quota Card */}
-            <WeeklyQuotaCard
+        {/* 2-Column Dashboard Grid: Wide Left Column + Narrower Right Column */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column (Wide: cols 1-7 on desktop, 1-8 on xl screens) */}
+          <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6 w-full">
+            {/* Top row (three cards): Today, Hours this week, Credited hours */}
+            <StaffTopMetricsCards
+              isClockedIn={clockedInToday}
+              hoursToday={metrics.hoursToday}
               hoursThisWeek={metrics.hoursThisWeek}
               requiredWeeklyHours={metrics.requiredWeeklyHours}
+              creditedHours={metrics.creditedHours}
               standbyHours={metrics.standbyHours}
               overtimeHours={metrics.overtimeHours}
-              percentMet={metrics.percentMet}
-              remainingHours={metrics.remainingHours}
             />
 
-            {/* Dynamic Week Telemetry & Attendance Table */}
+            {/* Submit your work Card */}
+            <SubmitDeliverableCard
+              employeeId={profile.id}
+              clockedIn={clockedInToday}
+              onSubmitted={handleRefetch}
+            />
+          </div>
+
+          {/* Right Column (Narrower: cols 8-12 on desktop, 9-12 on xl screens) */}
+          <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-6 w-full">
+            {/* This week Card: Week/Day toggle, Week 42 cycle, Monday-Friday list */}
             <WeekTelemetryCard
               weekTelemetry={weekTelemetry}
               daySessions={daySessions}
               selectedDate={selectedDate}
               onSelectDate={(d) => setSelectedDate(d)}
             />
-          </div>
 
-          {/* Column 2: Submit Deliverables & Work Outputs */}
-          <div className="2xl:col-span-5 flex flex-col w-full h-full">
-            <SubmitDeliverableCard
-              employeeId={profile.id}
-              onSubmitted={handleRefetch}
-            />
-          </div>
-
-          {/* Column 3: Security note + Audit Trail Panel */}
-          <div className="md:col-span-2 2xl:col-span-3 flex flex-col gap-4 w-full h-full">
-            <div className="neu-raised rounded-neu p-4">
-              <div className="flex items-center gap-1.5 text-ink-muted">
-                <ShieldCheck className="h-3.5 w-3.5 text-accent" />
-                <span className="text-[9.5px] font-bold uppercase tracking-wider text-ink-muted">
-                  System Security
-                </span>
-              </div>
-              <p className="mt-1 text-[13px] font-bold text-ink">Admin Locked Telemetry</p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-ink-muted">
-                Manual override is restricted to authorized operations directors.
-              </p>
-            </div>
-
+            {/* My submissions Card: Read-only chip, Total/Approved/In review counts, locked items */}
             <AuditTrailPanel outputs={outputs} />
           </div>
         </div>

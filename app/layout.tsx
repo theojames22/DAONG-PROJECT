@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import { ThemeProvider, type Theme } from "@/components/theme/ThemeProvider";
+import LoadingScreen from "@/components/LoadingScreen";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -61,6 +62,7 @@ export default async function RootLayout({
       }`}
     >
       <body className="font-sans text-ink antialiased">
+        <LoadingScreen />
         <ThemeProvider initialTheme={initialTheme}>{children}</ThemeProvider>
       </body>
     </html>

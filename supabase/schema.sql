@@ -5,16 +5,18 @@ create table public.profiles (
   id uuid references auth.users on delete cascade primary key,
   full_name text,
   position text,
-  role text not null default 'employee' check (role in ('employee', 'admin')),
+  role text not null default 'staff' check (role in ('head', 'staff')),
   required_weekly_hours numeric not null default 40,
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles enable row level security;
 
--- 2. Helper function to check admin status without triggering RLS recursion
---    (a policy that queries profiles from within a profiles policy would loop
---    otherwise — security definer functions bypass RLS safely for this check).
+-- 2. Helper function to check Head (administrator) status without triggering
+--    RLS recursion (a policy that queries profiles from within a profiles
+--    policy would loop otherwise — security definer functions bypass RLS
+--    safely for this check). Every "admin-class" policy calls is_admin();
+--    after the Admin→Head merge it means role = 'head'.
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -22,7 +24,20 @@ security definer
 set search_path = public
 as $$
   select exists (
-    select 1 from public.profiles where id = auth.uid() and role = 'admin'
+    select 1 from public.profiles where id = auth.uid() and role = 'head'
+  );
+$$;
+
+-- Staff-only check, mirroring is_admin(). Used to keep attendance records
+-- to Staff: Heads do not clock in/out.
+create or replace function public.is_staff()
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles where id = auth.uid() and role = 'staff'
   );
 $$;
 
@@ -31,7 +46,7 @@ create policy "Users can view their own profile"
   on public.profiles for select
   using (auth.uid() = id);
 
-create policy "Admins can view every profile"
+create policy "Heads can view every profile"
   on public.profiles for select
   using (public.is_admin());
 
@@ -39,13 +54,13 @@ create policy "Users can update their own profile"
   on public.profiles for update
   using (auth.uid() = id);
 
-create policy "Admins can update any profile"
+create policy "Heads can update any profile"
   on public.profiles for update
   using (public.is_admin());
 
 -- 4. Auto-create a profile row whenever someone signs up.
 --    Pass full_name / role in signUp's options.data (see login page notes) —
---    role defaults to 'employee' if not provided, so admins must be promoted
+--    role defaults to 'staff' if not provided, so Heads must be promoted
 --    manually (see the UPDATE statement at the bottom of this file).
 create or replace function public.handle_new_user()
 returns trigger
@@ -58,7 +73,7 @@ begin
   values (
     new.id,
     new.raw_user_meta_data ->> 'full_name',
-    coalesce(new.raw_user_meta_data ->> 'role', 'employee')
+    coalesce(new.raw_user_meta_data ->> 'role', 'staff')
   );
   return new;
 end;
@@ -68,8 +83,8 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- 5. To make your first admin account, after signing up once through the app:
---    update public.profiles set role = 'admin' where id = '<paste the user id from auth.users>';
+-- 5. To make your first Head (administrator) account, after signing up once:
+--    update public.profiles set role = 'head', position = 'head' where id = '<paste the user id from auth.users>';
 
 -- =====================================================================
 -- SESSIONS — one row per time-in/time-out pair. A single employee can
@@ -89,19 +104,20 @@ create policy "Users can view their own sessions"
   on public.sessions for select
   using (auth.uid() = employee_id);
 
-create policy "Admins can view all sessions"
+create policy "Heads can view all sessions"
   on public.sessions for select
   using (public.is_admin());
 
+-- Only Staff may open a session; Heads do not clock in/out.
 create policy "Users can insert their own sessions"
   on public.sessions for insert
-  with check (auth.uid() = employee_id);
+  with check (auth.uid() = employee_id and public.is_staff());
 
 create policy "Users can update their own open session"
   on public.sessions for update
   using (auth.uid() = employee_id);
 
-create policy "Admins can update any session"
+create policy "Heads can update any session"
   on public.sessions for update
   using (public.is_admin());
 
@@ -129,7 +145,7 @@ create policy "Users can view their own outputs"
   on public.outputs for select
   using (auth.uid() = employee_id);
 
-create policy "Admins can view all outputs"
+create policy "Heads can view all outputs"
   on public.outputs for select
   using (public.is_admin());
 
@@ -137,7 +153,7 @@ create policy "Users can insert their own outputs"
   on public.outputs for insert
   with check (auth.uid() = employee_id);
 
-create policy "Admins can update any output"
+create policy "Heads can update any output"
   on public.outputs for update
   using (public.is_admin());
 

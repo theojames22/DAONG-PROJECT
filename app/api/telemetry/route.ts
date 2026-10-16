@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getWeekRange, totalHours, toDateKey } from "@/lib/attendance";
-import { Session, Output } from "@/lib/types";
+import {
+  getWeekRange,
+  totalHours,
+  creditedProgress,
+  toDateKey,
+  dayStartISO,
+  dayEndISO,
+} from "@/lib/attendance";
+import { Session, Output, AttendanceDay, WeekHours } from "@/lib/types";
 
 function formatTime(iso: string) {
   try {
@@ -43,11 +50,16 @@ export async function GET(request: Request) {
   const targetDate = new Date(selectedDate);
   const { start: weekStart, end: weekEnd, days: weekDaysKeys } = getWeekRange(targetDate);
 
-  // 4. Fetch profile, day's sessions, week's sessions, and outputs concurrently
+  // 4. Fetch profile, the day's + week's sessions, the persisted
+  //    attendance days for the same two windows, the credited-hours
+  //    rollup, and outputs — all concurrently.
   const [
     { data: profile },
     { data: daySessionsRaw },
     { data: weekSessionsRaw },
+    { data: dayAttendanceRaw },
+    { data: weekAttendanceRaw },
+    { data: weekHoursRaw },
     { data: outputsRaw },
   ] = await Promise.all([
     supabase
@@ -60,17 +72,43 @@ export async function GET(request: Request) {
       .from("sessions")
       .select("id, employee_id, time_in, time_out")
       .eq("employee_id", user.id)
-      .gte("time_in", `${selectedDate}T00:00:00`)
-      .lte("time_in", `${selectedDate}T23:59:59`)
+      .gte("time_in", dayStartISO(selectedDate))
+      .lte("time_in", dayEndISO(selectedDate))
       .order("time_in", { ascending: true }),
 
     supabase
       .from("sessions")
       .select("id, employee_id, time_in, time_out")
       .eq("employee_id", user.id)
-      .gte("time_in", `${weekStart}T00:00:00`)
-      .lte("time_in", `${weekEnd}T23:59:59`)
+      .gte("time_in", dayStartISO(weekStart))
+      .lte("time_in", dayEndISO(weekEnd))
       .order("time_in", { ascending: true }),
+
+    // The durable attendance history, written by the sessions trigger.
+    supabase
+      .from("attendance_days")
+      .select("employee_id, date, hours, session_count, first_in, last_out, has_open_session")
+      .eq("employee_id", user.id)
+      .eq("date", selectedDate)
+      .maybeSingle(),
+
+    supabase
+      .from("attendance_days")
+      .select("employee_id, date, hours, session_count, first_in, last_out, has_open_session")
+      .eq("employee_id", user.id)
+      .gte("date", weekStart)
+      .lte("date", weekEnd)
+      .order("date", { ascending: true }),
+
+    // Credited hours: attendance_days joined to approved outputs, rolled
+    // up per week. The week_start this view uses is the Monday of the
+    // week, matching getWeekRange().
+    supabase
+      .from("employee_week_hours")
+      .select("employee_id, week_start, attendance_hours, credited_hours, attendance_days, credited_days")
+      .eq("employee_id", user.id)
+      .eq("week_start", weekStart)
+      .maybeSingle(),
 
     supabase
       .from("outputs")
@@ -82,30 +120,53 @@ export async function GET(request: Request) {
   const daySessions = (daySessionsRaw ?? []) as Session[];
   const weekSessions = (weekSessionsRaw ?? []) as Session[];
   const outputs = (outputsRaw ?? []) as Output[];
+  const dayAttendance = (dayAttendanceRaw ?? null) as AttendanceDay | null;
+  const weekAttendance = (weekAttendanceRaw ?? []) as AttendanceDay[];
+  const weekHours = (weekHoursRaw ?? null) as WeekHours | null;
 
-  // 5. Calculate Metrics
+  // 5. Attendance hours — read from the persisted attendance_days rows.
+  //    Falling back to a live totalHours() keeps the UI honest if the
+  //    migration hasn't been applied yet (or a row somehow went missing)
+  //    instead of silently showing 0.0h for a day that clearly has
+  //    sessions. These numbers are the raw history: they are NOT the
+  //    weekly requirement's yardstick.
+  const hoursToday =
+    dayAttendance?.hours ?? totalHours(daySessions);
+  const hoursThisWeek =
+    weekAttendance.length > 0
+      ? weekAttendance.reduce((sum, d) => sum + Number(d.hours), 0)
+      : weekHours?.attendance_hours ?? totalHours(weekSessions);
+
+  // 6. Credited hours — the separate value that counts toward the weekly
+  //    requirement. Only days with an approved output contribute, so a
+  //    week of full attendance with no approved output credits 0/40.
+  //    Derived, never incremented, so approvals can't double count.
   const requiredWeeklyHours = profile?.required_weekly_hours ?? 40;
-  const hoursThisWeek = totalHours(weekSessions);
-  const hoursToday = totalHours(daySessions);
 
-  const percentMet =
-    requiredWeeklyHours > 0
-      ? Math.min(Math.round((hoursThisWeek / requiredWeeklyHours) * 100), 100)
-      : 0;
+  // The view is the source of truth. If it isn't reachable yet (migration
+  // not applied), derive the identical number from the attendance days and
+  // outputs we already fetched, so a partially-migrated database still
+  // reports the truth instead of a flat zero.
+  const approvedOutputDates = new Set(
+    outputs.filter((o) => o.status === "done").map((o) => o.date)
+  );
+  const creditedHoursFallback = weekAttendance
+    .filter((d) => approvedOutputDates.has(d.date) && !d.has_open_session)
+    .reduce((sum, d) => sum + Number(d.hours), 0);
 
-  const remainingHours = Math.max(0, requiredWeeklyHours - hoursThisWeek);
-  const coreShift = Math.min(hoursThisWeek, requiredWeeklyHours);
-  const standbyHours = hoursToday;
-  const overtimeHours = Math.max(0, hoursThisWeek - requiredWeeklyHours);
+  const credited = creditedProgress(
+    weekHours ? Number(weekHours.credited_hours) || 0 : creditedHoursFallback,
+    requiredWeeklyHours
+  );
 
-  // 6. Check open session
+  // 7. Check open session
   const openSession =
     daySessions.find((s) => !s.time_out) ||
     weekSessions.find((s) => !s.time_out) ||
     null;
   const isClockedIn = !!openSession;
 
-  // 7. Format day sessions for table view
+  // 8. Format day sessions for table view
   const formattedDaySessions = daySessions.map((s, index) => {
     const duration = sessionDurationHours(s);
     return {
@@ -120,7 +181,7 @@ export async function GET(request: Request) {
     };
   });
 
-  // 8. Build Monday - Friday telemetry array for the week
+  // 9. Build Monday - Friday telemetry array for the week
   const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const weekTelemetry = dayNames.map((name, i) => {
     const dateKey = weekDaysKeys[i];
@@ -173,17 +234,38 @@ export async function GET(request: Request) {
     isClockedIn,
     openSession,
     metrics: {
+      // --- Attendance hours (raw history, never the requirement's metric) ---
       hoursToday,
       hoursThisWeek,
       requiredWeeklyHours,
-      percentMet,
-      remainingHours,
-      coreShift,
-      standbyHours,
-      overtimeHours,
+      hoursLoggedPercent:
+        requiredWeeklyHours > 0
+          ? Math.min(Math.round((hoursThisWeek / requiredWeeklyHours) * 100), 100)
+          : 0,
+      coreShift: Math.min(hoursThisWeek, requiredWeeklyHours),
+      standbyHours: hoursToday,
+      overtimeHours: Math.max(0, hoursThisWeek - requiredWeeklyHours),
+      // --- Credited hours (counts toward the weekly requirement) ---
+      creditedHours: credited.creditedHours,
+      creditedPercentMet: credited.percentMet,
+      creditedRemainingHours: credited.remainingHours,
+      creditedDays: weekHours?.credited_days ?? 0,
+      attendanceDays: weekHours?.attendance_days ?? weekAttendance.length,
     },
     daySessions: formattedDaySessions,
     weekTelemetry,
     outputs,
+    // The row written to attendance_days for the selected date — the
+    // recorded attendance history, independent of any output.
+    attendanceDay: dayAttendance
+      ? {
+          date: dayAttendance.date,
+          hours: Number(dayAttendance.hours),
+          sessionCount: dayAttendance.session_count,
+          firstIn: dayAttendance.first_in,
+          lastOut: dayAttendance.last_out,
+          hasOpenSession: dayAttendance.has_open_session,
+        }
+      : null,
   });
 }

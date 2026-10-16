@@ -6,8 +6,8 @@ export default async function Home() {
   try {
     const { profile } = await getAuthenticatedProfile();
 
-    if (profile.role === USER_ROLES.ADMIN) {
-      redirect("/admin");
+    if (profile.role === USER_ROLES.HEAD) {
+      redirect("/head");
     }
 
     redirect("/employee");

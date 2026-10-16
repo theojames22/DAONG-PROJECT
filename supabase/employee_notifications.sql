@@ -14,9 +14,14 @@
 
 -- ---------------------------------------------------------------------
 -- 1. OUTPUT APPROVAL ALERTS — fires when the review status changes.
---    reviewed_by is written by the review UI (see ReviewList), so the
---    notification can name the approver; coalesce keeps the trigger safe
---    even if a legacy row updates without a reviewer set.
+--    reviewed_by is written by the admin tooling that updates the row
+--    (see project_review_workflow.sql), so the notification can name the
+--    approver; coalesce keeps the trigger safe even if a legacy row
+--    updates without a reviewer set.
+--    Stays quiet while the project-sync trigger from
+--    mirror_outputs_to_projects.sql is driving the change (the projects
+--    trigger already announced it) — one decision, one notification.
+--    Kept identical in both files: mirror_outputs_to_projects.sql.
 -- ---------------------------------------------------------------------
 create or replace function public.notify_employee_on_output_review()
 returns trigger
@@ -26,28 +31,39 @@ set search_path = public
 as $$
 declare
   v_reviewer text;
+  v_project_id uuid;
 begin
   if new.status is distinct from old.status then
+    -- Driven by the project sync trigger: the projects trigger already
+    -- told the employee about this decision.
+    if pg_trigger_depth() > 1 then
+      return new;
+    end if;
+
     select coalesce(full_name, 'Your administrator')
       into v_reviewer
       from public.profiles
      where id = coalesce(new.reviewed_by, new.employee_id);
 
-    if new.status = 'done' then
-      insert into public.notifications (sender_id, receiver_id, message)
+    -- Thread the alert to the project discussion when this output has a
+    -- mirrored review entry.
+    select id into v_project_id
+      from public.projects
+     where source_output_id = new.id;
+
+    if new.status in ('done', 'checking', 'rejected') then
+      insert into public.notifications (sender_id, receiver_id, message, project_id)
       values (
         coalesce(new.reviewed_by, new.employee_id),
         new.employee_id,
-        'Your output "' || coalesce(new.title, 'deliverable')
-          || '" was approved by ' || v_reviewer
-      );
-    elsif new.status = 'checking' then
-      insert into public.notifications (sender_id, receiver_id, message)
-      values (
-        coalesce(new.reviewed_by, new.employee_id),
-        new.employee_id,
-        'Your output "' || coalesce(new.title, 'deliverable')
-          || '" is now being checked by ' || v_reviewer
+        'Your output "' || coalesce(new.title, 'deliverable') || '"'
+          || case new.status
+               when 'done' then ' was approved by '
+               when 'rejected' then ' was rejected by '
+               else ' is now being checked by '
+             end
+          || v_reviewer,
+        v_project_id
       );
     end if;
   end if;
@@ -73,7 +89,10 @@ $$;
 
 -- ---------------------------------------------------------------------
 -- 2. PROJECT APPROVAL ALERTS — same idea, deep-linked via project_id so
---    the notification is threaded to the project discussion.
+--    the notification is threaded to the project discussion. Announces
+--    'checking' as well as the final decision, so marking a project
+--    Checking tells the employee exactly like the output flow does.
+--    Kept identical in both files: mirror_outputs_to_projects.sql.
 -- ---------------------------------------------------------------------
 create or replace function public.notify_employee_on_project_review()
 returns trigger
@@ -85,7 +104,7 @@ declare
   v_reviewer text;
 begin
   if new.status is distinct from old.status
-     and new.status in ('approved', 'rejected') then
+     and new.status in ('checking', 'approved', 'rejected') then
     select coalesce(full_name, 'Your administrator')
       into v_reviewer
       from public.profiles
@@ -96,7 +115,12 @@ begin
       coalesce(new.reviewed_by, new.submitted_by),
       new.submitted_by,
       'Your project "' || coalesce(new.title, 'project') || '" was '
-        || new.status || ' by ' || v_reviewer,
+        || case new.status
+             when 'approved' then 'approved'
+             when 'rejected' then 'rejected'
+             else 'moved to checking'
+           end
+        || ' by ' || v_reviewer,
       new.id
     );
   end if;
@@ -120,7 +144,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- 3. ADMIN RECIPIENTS — employees can see which admins to message.
+-- 3. HEAD RECIPIENTS — employees can see which Heads to message.
 --    Returns only id/name/position; open to any signed-in user because
 --    the result set is tiny and non-sensitive.
 -- ---------------------------------------------------------------------
@@ -132,7 +156,7 @@ set search_path = public
 as $$
   select p.id, p.full_name, p.position
     from public.profiles p
-   where p.role = 'admin';
+   where p.role = 'head';
 $$;
 
 -- =====================================================================

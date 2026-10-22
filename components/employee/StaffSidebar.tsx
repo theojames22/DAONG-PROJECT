@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Clock, Calendar, LogOut, Menu, X } from "lucide-react";
+import { Clock, Calendar, FileText, LogOut, Menu, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const links = [
   { href: "/employee", label: "My dashboard", icon: Clock },
+  { href: "/employee/outputs", label: "My Outputs", icon: FileText },
   { href: "/employee/schedule", label: "My Schedule", icon: Calendar },
 ];
 

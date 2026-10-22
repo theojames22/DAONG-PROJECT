@@ -32,7 +32,14 @@ export async function GET(
     .eq("id", params.id)
     .single();
 
-  if (error || !project?.file_url) {
+  // A Written Output has no file to stream — it has no URL at all (the body
+  // is reviewed in the app, never downloaded). Same answer for a legacy row
+  // whose URL is missing or is not a fetchable http(s) address.
+  if (
+    error ||
+    !project?.file_url ||
+    !/^https?:\/\//i.test(project.file_url)
+  ) {
     return new NextResponse("Not found", { status: 404 });
   }
 

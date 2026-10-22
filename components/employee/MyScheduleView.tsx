@@ -1043,12 +1043,12 @@ export default function MyScheduleView({ profile }: MyScheduleViewProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           {/* Backdrop with blur & darkening */}
           <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-fade-in"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm animate-backdrop-in"
             onClick={() => !isSaving && setModalOpen(false)}
           />
 
           {/* Modal Card */}
-          <div className="relative z-10 w-full max-w-md rounded-[20px] bg-white border border-staff-border p-6 shadow-2xl transition-all transform animate-scale-in">
+          <div className="relative z-10 w-full max-w-md rounded-[20px] bg-white border border-staff-border p-6 shadow-2xl animate-modal-in">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-staff-border pb-3.5">
               <div className="flex items-center gap-2">

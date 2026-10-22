@@ -196,7 +196,7 @@ export default function DetailsDrawer({
     <div className="fixed inset-0 z-[100] flex justify-end">
       {/* Blurred dark backdrop */}
       <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-fade-in"
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-backdrop-in"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -207,7 +207,7 @@ export default function DetailsDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={`Attendance report for ${personName}`}
-        className="relative z-10 flex h-full w-full max-w-[520px] flex-col overflow-y-auto bg-white shadow-2xl animate-fade-in sm:rounded-l-[22px]"
+        className="relative z-10 flex h-full w-full max-w-[520px] flex-col overflow-y-auto bg-white shadow-2xl animate-drawer-in sm:rounded-l-[22px]"
       >
         {/* Header */}
         <div className="sticky top-0 z-10 border-b border-[#E6EBF5] bg-white/95 px-5 py-4 backdrop-blur sm:px-6">

@@ -4,9 +4,16 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedProfile, ProfileMissingError } from "@/lib/auth-utils";
 import { USER_ROLES } from "@/lib/constants";
-import { Notification, Project } from "@/lib/types";
+import { Notification, Project, ProjectSubmission } from "@/lib/types";
 import PageHeader from "@/components/ui/PageHeader";
 import ProjectApprovalPanel from "@/components/head/ProjectApprovalPanel";
+
+const PROJECT_COLUMNS =
+  "id, title, description, file_url, status, submitted_by, reviewed_by, reviewer_notes, created_at, updated_at, source_output_id, submitter:profiles!projects_submitted_by_fkey(full_name, position)";
+
+/** The linked submission, read separately so no relationship-name hint is needed. */
+const SUBMISSION_COLUMNS =
+  "attachment_type, content, submission_notes, file_name, storage_path, file_mime_type, file_size";
 
 export default async function ProjectDetailPage({
   params,
@@ -35,9 +42,7 @@ export default async function ProjectDetailPage({
   // Try finding by project ID or source output ID
   let { data: project } = await supabase
     .from("projects")
-    .select(
-      "id, title, description, file_url, status, submitted_by, reviewed_by, reviewer_notes, created_at, updated_at, submitter:profiles!projects_submitted_by_fkey(full_name, position)"
-    )
+    .select(PROJECT_COLUMNS)
     .or(`id.eq.${params.id},source_output_id.eq.${params.id}`)
     .maybeSingle();
 
@@ -47,15 +52,26 @@ export default async function ProjectDetailPage({
 
     const { data: syncedProject } = await supabase
       .from("projects")
-      .select(
-        "id, title, description, file_url, status, submitted_by, reviewed_by, reviewer_notes, created_at, updated_at, submitter:profiles!projects_submitted_by_fkey(full_name, position)"
-      )
+      .select(PROJECT_COLUMNS)
       .or(`id.eq.${params.id},source_output_id.eq.${params.id}`)
       .maybeSingle();
     project = syncedProject;
   }
 
   if (!project) notFound();
+
+  // The written body / attachment metadata lives on the outputs row. Read it
+  // by id — RLS lets a Head read every output — instead of relying on a
+  // PostgREST relationship hint for the mirrored row.
+  let submission: ProjectSubmission | null = null;
+  if (project.source_output_id) {
+    const { data: output } = await supabase
+      .from("outputs")
+      .select(SUBMISSION_COLUMNS)
+      .eq("id", project.source_output_id)
+      .maybeSingle();
+    submission = (output as unknown as ProjectSubmission | null) ?? null;
+  }
 
   const { data: messages } = await supabase
     .from("notifications")
@@ -83,7 +99,7 @@ export default async function ProjectDetailPage({
         description="Review the submission, approve or reject it, and message the employee."
       />
       <ProjectApprovalPanel
-        project={project as unknown as Project}
+        project={{ ...(project as unknown as Project), submission }}
         adminId={user.id}
         initialMessages={(messages ?? []) as unknown as Notification[]}
       />

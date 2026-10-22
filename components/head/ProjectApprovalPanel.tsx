@@ -2,18 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Check,
-  Clock3,
-  Download,
-  Loader2,
-  MessageSquare,
-  Send,
-  X,
-} from "lucide-react";
+import { Check, Clock3, Loader2, MessageSquare, Send, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Notification, Project, ProjectStatus } from "@/lib/types";
-import { fileNameFromUrl, safeFileName } from "@/lib/file-name";
+import {
+  AttachmentType,
+  Notification,
+  Project,
+  ProjectStatus,
+} from "@/lib/types";
+import SubmissionAction from "@/components/shared/SubmissionAction";
+import { formatFileSize } from "@/lib/outputs";
 import { ProjectStatusPill } from "./ProjectList";
 
 interface ProjectApprovalPanelProps {
@@ -21,6 +19,9 @@ interface ProjectApprovalPanelProps {
   adminId: string;
   initialMessages: Notification[];
 }
+
+/** Written bodies are shown in full in the viewer; this is the inline taster. */
+const EXCERPT_LIMIT = 420;
 
 export default function ProjectApprovalPanel({
   project,
@@ -31,19 +32,19 @@ export default function ProjectApprovalPanel({
   const supabase = createClient();
 
   const [status, setStatus] = useState<ProjectStatus>(project.status);
-  const [notes, setNotes] = useState(project.reviewer_notes ?? "");
+  const [notes, setNotes] = useState(() => {
+    const existing = (project.reviewer_notes ?? "").trim();
+    const submitted = (project.description ?? "").trim();
+    // Legacy rows had the staff note copied into reviewer_notes by the old
+    // backfill. Showing that back as the Head's own feedback would be a lie,
+    // so identical values are treated as "no reviewer note yet".
+    return existing && existing !== submitted ? project.reviewer_notes ?? "" : "";
+  });
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [messages, setMessages] = useState<Notification[]>(initialMessages);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
-
-  const isImage = /\.(png|jpe?g|gif|webp|svg)$/i.test(project.file_url);
-
-  // Original filename when the URL carries one, sanitized for headers.
-  const downloadName = safeFileName(
-    fileNameFromUrl(project.file_url, project.title || "project")
-  );
 
   // Follow the database: if the stored status changes — another admin's
   // decision, or the refresh after our own save — the pill and buttons
@@ -52,10 +53,46 @@ export default function ProjectApprovalPanel({
     setStatus(project.status);
   }, [project.status]);
 
+  const submission = project.submission ?? null;
+  const writtenContent = (submission?.content ?? "").trim();
+
+  /**
+   * The submission type, with a fallback for rows that predate the column
+   * join (or a database where the migration hasn't run yet).
+   */
+  const artifactType: AttachmentType | null =
+    submission?.attachment_type ??
+    (project.file_url
+      ? /\.(png|jpe?g|gif|webp|svg)$/i.test(project.file_url)
+        ? "image"
+        : "file"
+      : null);
+
+  const isImage = artifactType === "image";
+  const actionLabel =
+    artifactType === "written"
+      ? "Read submission"
+      : artifactType === "link"
+        ? "Open link"
+        : artifactType === "image"
+          ? "Open image"
+          : "Download file";
+
+  const decisionLocked = status === "approved" || status === "rejected";
+
   async function reviewProject(next: ProjectStatus) {
     // Guard against conflicting / duplicate updates. The buttons are also
     // disabled in these states, but never fire an action regardless.
     if (saving || next === status) return;
+
+    // A final decision cannot be flipped straight to the other one — the
+    // database enforces this too (guard_final_decision). Reopening to
+    // "checking" is the authorized correction path.
+    if (decisionLocked && (next === "approved" || next === "rejected")) {
+      setFeedback('Reopen this submission to "Checking" before changing a final decision.');
+      return;
+    }
+
     setSaving(true);
     setFeedback(null);
     const { error } = await supabase
@@ -67,7 +104,10 @@ export default function ProjectApprovalPanel({
       })
       .eq("id", project.id);
 
-    if (project.source_output_id) {
+    // Only mirror the change onto the linked output when the decision itself
+    // was accepted. If the update was rejected (for example by the
+    // final-decision guard), the output must stay exactly as it was.
+    if (!error && project.source_output_id) {
       const outputStatus =
         next === "approved"
           ? "done"
@@ -77,12 +117,16 @@ export default function ProjectApprovalPanel({
           ? "checking"
           : "pending";
 
+      // The DB trigger (sync_output_from_project) already did this; writing
+      // the same values is idempotent and keeps the two tables in step if
+      // the trigger is unavailable.
       await supabase
         .from("outputs")
         .update({
           status: outputStatus,
           reviewed_by: adminId,
           reviewer_notes: notes.trim() || null,
+          reviewed_at: new Date().toISOString(),
         })
         .eq("id", project.source_output_id);
     }
@@ -139,25 +183,62 @@ export default function ProjectApprovalPanel({
               {project.submitter?.position ? ` · ${project.submitter.position}` : ""} on{" "}
               {new Date(project.created_at).toLocaleString()}
             </p>
+            {submission?.file_size ? (
+              <p className="mt-0.5 text-[11px] text-ink-subtle">
+                {submission.file_name || "Attachment"}
+                {submission.file_mime_type ? ` · ${submission.file_mime_type}` : ""}
+                {` · ${formatFileSize(submission.file_size)}`}
+              </p>
+            ) : null}
           </div>
 
-          <a
-            href={`/api/projects/${project.id}/download`}
-            download={downloadName}
+          <SubmissionAction
+            type={artifactType}
+            title={project.title}
+            url={project.file_url}
+            content={writtenContent}
+            projectId={project.id}
+            fileName={submission?.file_name ?? null}
+            submitter={project.submitter?.full_name ?? null}
+            date={project.created_at}
+            statusSlot={<ProjectStatusPill status={status} />}
+            label={actionLabel}
             className="btn-secondary neu-focus shrink-0"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Download file
-          </a>
+          />
         </div>
 
         {project.description && (
-          <p className="mt-4 whitespace-pre-wrap text-[13px] leading-relaxed text-ink-muted">
-            {project.description}
-          </p>
+          <div className="mt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+              Notes from the submitter
+            </p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink-muted">
+              {project.description}
+            </p>
+          </div>
         )}
 
-        {isImage && (
+        {/* Written output — inline excerpt, full text in the viewer. */}
+        {artifactType === "written" && (
+          <div className="mt-4 rounded-xl border border-border bg-base-light/50 p-3.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+              Written output
+            </p>
+            {writtenContent ? (
+              <p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink">
+                {writtenContent.length > EXCERPT_LIMIT
+                  ? `${writtenContent.slice(0, EXCERPT_LIMIT).trimEnd()}…`
+                  : writtenContent}
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[12.5px] text-ink-subtle">
+                This submission has no written content.
+              </p>
+            )}
+          </div>
+        )}
+
+        {isImage && project.file_url && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={project.file_url}
@@ -182,17 +263,20 @@ export default function ProjectApprovalPanel({
           </label>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Checking is always available (a decided project can be
-                reopened); Approve and Reject lock once a decision is
-                final. The disabled attribute — not just styling — is what
-                stops the click, and reviewProject re-checks as well. */}
+            {/* Checking is always available — it is the documented way to
+                reopen a finished review. Approve/Reject lock once a final
+                decision exists; the database enforces the same rule. */}
             <button
               type="button"
               onClick={() => reviewProject("checking")}
-              disabled={saving}
+              disabled={saving || status === "checking"}
               className="btn-secondary btn-decision neu-focus"
               title={
-                status === "checking" ? "Already marked as checking" : undefined
+                decisionLocked
+                  ? "Reopen this submission for another review"
+                  : status === "checking"
+                    ? "Already marked as checking"
+                    : undefined
               }
             >
               {saving ? (
@@ -205,12 +289,14 @@ export default function ProjectApprovalPanel({
             <button
               type="button"
               onClick={() => reviewProject("approved")}
-              disabled={saving || status === "approved"}
+              disabled={saving || decisionLocked}
               className="btn-primary btn-decision neu-focus"
               title={
                 status === "approved"
-                  ? "Approve is disabled — this project is already approved"
-                  : undefined
+                  ? "Approve is disabled — this submission is already approved"
+                  : status === "rejected"
+                    ? "Reopen to Checking before approving a rejected submission"
+                    : undefined
               }
             >
               {saving ? (
@@ -223,12 +309,14 @@ export default function ProjectApprovalPanel({
             <button
               type="button"
               onClick={() => reviewProject("rejected")}
-              disabled={saving || status === "rejected"}
+              disabled={saving || decisionLocked}
               className="btn-danger btn-decision neu-focus"
               title={
                 status === "rejected"
-                  ? "Reject is disabled — this project is already rejected"
-                  : undefined
+                  ? "Reject is disabled — this submission is already rejected"
+                  : status === "approved"
+                    ? "Reopen to Checking before rejecting an approved submission"
+                    : undefined
               }
             >
               {saving ? (

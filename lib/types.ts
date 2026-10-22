@@ -1,6 +1,6 @@
 export type Role = "head" | "staff";
 export type OutputStatus = "pending" | "checking" | "done" | "rejected";
-export type AttachmentType = "file" | "link" | "image";
+export type AttachmentType = "file" | "link" | "image" | "written";
 export type DayStatus = "present" | "unverified" | "incomplete" | "absent";
 
 // Head dashboard additions
@@ -59,19 +59,45 @@ export interface Output {
   date: string; // YYYY-MM-DD
   title: string | null;
   attachment_type: AttachmentType;
-  attachment_url: string;
+  /** null for a 'written' submission — there is no file or URL to point at. */
+  attachment_url: string | null;
+  /** The written body. Plain text only; never HTML. */
+  content?: string | null;
+  /** The staff member's note to the reviewer (separate from reviewer_notes). */
+  submission_notes?: string | null;
+  /** Object path inside the 'project-files' bucket, for file/image uploads. */
+  storage_path?: string | null;
+  /** Original filename of the uploaded file, when there was one. */
+  file_name?: string | null;
+  /** MIME type reported at upload time. */
+  file_mime_type?: string | null;
+  /** Uploaded size in bytes. */
+  file_size?: number | null;
   status: OutputStatus;
   reviewer_notes: string | null;
   reviewed_by?: string | null;
+  reviewed_at?: string | null;
   created_at?: string;
   reviewer?: { full_name: string | null } | null;
+}
+
+/** The linked `outputs` row behind a mirrored project review entry. */
+export interface ProjectSubmission {
+  attachment_type: AttachmentType;
+  content: string | null;
+  submission_notes: string | null;
+  file_name: string | null;
+  storage_path: string | null;
+  file_mime_type: string | null;
+  file_size: number | null;
 }
 
 export interface Project {
   id: string;
   title: string;
   description: string | null;
-  file_url: string;
+  /** null for a written submission — the body lives on the linked output. */
+  file_url: string | null;
   status: ProjectStatus;
   submitted_by: string;
   reviewed_by: string | null;
@@ -82,6 +108,8 @@ export interface Project {
   // Joined fields (from `sender:profiles!...` / `reviewer:profiles!...`)
   submitter?: { full_name: string | null; position: string | null } | null;
   reviewer?: { full_name: string | null } | null;
+  /** Joined from the linked outputs row (written body, type, filename). */
+  submission?: ProjectSubmission | null;
 }
 
 export interface Notification {

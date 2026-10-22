@@ -9,6 +9,13 @@ import type { Theme } from "@/components/theme/ThemeProvider";
 export interface StaffHeaderProps {
   title?: string;
   description?: string;
+  /**
+   * Optional small label above the title. When provided it replaces the
+   * time-aware greeting, which is what secondary pages want instead of a
+   * "Good morning" line. Omitted everywhere else, so those pages are
+   * unchanged.
+   */
+  eyebrow?: string;
   fullName?: string;
   employeeId?: string;
   employeeEmail?: string | null;
@@ -24,6 +31,7 @@ export interface StaffHeaderProps {
 export default function StaffHeader({
   title = "My dashboard",
   description = "Track your recorded attendance, credited hours, and submit your work.",
+  eyebrow,
   fullName = "Staff",
   employeeId,
   employeeEmail,
@@ -72,11 +80,17 @@ export default function StaffHeader({
   return (
     <>
       <header className="relative z-30 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between enter-up pl-12 sm:pl-14 lg:pl-0">
-        {/* Left: Time-aware greeting, 40px Page title, subtitle */}
+        {/* Left: eyebrow or time-aware greeting, 40px Page title, subtitle */}
         <div>
-          <p className="text-sm font-semibold text-staff-blue-ink transition-colors">
-            {greeting}, {firstName}
-          </p>
+          {eyebrow ? (
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-staff-blue-ink">
+              {eyebrow}
+            </p>
+          ) : (
+            <p className="text-sm font-semibold text-staff-blue-ink transition-colors">
+              {greeting}, {firstName}
+            </p>
+          )}
           <h1 className="mt-1 text-3xl sm:text-[40px] font-extrabold tracking-tight text-staff-ink leading-tight">
             {title}
           </h1>

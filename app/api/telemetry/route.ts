@@ -110,9 +110,15 @@ export async function GET(request: Request) {
       .eq("week_start", weekStart)
       .maybeSingle(),
 
+    // Explicit columns: `content` is deliberately NOT selected. This route
+    // is polled every few seconds, so written bodies (up to 20k characters
+    // each) would otherwise ride along on every request. The employee page
+    // is the one place that needs a body, and it fetches it once.
     supabase
       .from("outputs")
-      .select("*")
+      .select(
+        "id, employee_id, date, title, attachment_type, attachment_url, status, reviewer_notes, reviewed_by, reviewed_at, storage_path, file_name, created_at"
+      )
       .eq("employee_id", user.id)
       .order("created_at", { ascending: false }),
   ]);

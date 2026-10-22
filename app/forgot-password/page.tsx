@@ -38,7 +38,7 @@ export default function ForgotPasswordPage() {
   if (status === "success") {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-10">
-        <div className="w-full max-w-[400px]">
+        <div className="login-enter w-full max-w-[400px]">
           <div className="neu-raised rounded-neu px-8 py-10 text-center">
             <Logo />
             <div className="mt-6 flex flex-col items-center gap-3">
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-[400px]">
+      <div className="login-enter w-full max-w-[400px]">
         <div className="neu-raised rounded-neu px-8 py-9 sm:px-10 sm:py-10">
           <Logo />
           <div className="mt-6 mb-7">

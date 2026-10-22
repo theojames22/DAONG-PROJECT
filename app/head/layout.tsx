@@ -42,6 +42,7 @@ export default async function HeadLayout({
   return (
     <div
       className="min-h-screen"
+      data-dashboard
       style={{
         backgroundImage:
           "linear-gradient(var(--bg-overlay), var(--bg-overlay)), url('/images/dashboardbg.jpg')",

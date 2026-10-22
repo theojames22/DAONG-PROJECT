@@ -174,7 +174,6 @@ export default function StaffDashboard({
 
             {/* Submit your work Card */}
             <SubmitDeliverableCard
-              employeeId={profile.id}
               clockedIn={clockedInToday}
               onSubmitted={handleRefetch}
             />

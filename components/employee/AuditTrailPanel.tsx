@@ -2,6 +2,14 @@
 
 import { Lock, FileCheck, Check, Clock, XCircle } from "lucide-react";
 import { Output } from "@/lib/types";
+import SubmissionAction from "@/components/shared/SubmissionAction";
+
+const TYPE_LABEL: Record<Output["attachment_type"], string> = {
+  written: "Written output",
+  file: "File",
+  image: "Image",
+  link: "Link",
+};
 
 interface AuditTrailPanelProps {
   outputs: Output[];
@@ -88,7 +96,22 @@ export default function AuditTrailPanel({ outputs }: AuditTrailPanelProps) {
                       {out.title || "Deliverable submission"}
                     </p>
                     <p className="text-[11px] text-staff-body mt-0.5">
-                      <span className="capitalize">{out.attachment_type}</span> • {out.date}
+                      <span>{TYPE_LABEL[out.attachment_type] ?? "Output"}</span> • {out.date}
+                      {out.attachment_type === "written" && (
+                        <>
+                          {" · "}
+                          <SubmissionAction
+                            type="written"
+                            title={out.title || "Written output"}
+                            content={out.content}
+                            outputId={out.id}
+                            date={out.date}
+                            variant="inline"
+                            label="Read"
+                            className="text-[11px] font-bold text-staff-blue-ink underline-offset-2 hover:underline"
+                          />
+                        </>
+                      )}
                     </p>
                   </div>
                   <Lock className="h-3.5 w-3.5 text-staff-muted shrink-0" />

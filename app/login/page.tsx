@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, FormEvent, useEffect, type CSSProperties } from "react";
+import {
+  useState,
+  FormEvent,
+  useEffect,
+  useRef,
+  type CSSProperties,
+} from "react";
 import { createClient } from "@/lib/supabase/client";
 import Logo from "@/components/Logo";
 import BrandLoader, { BrandLoaderBackdrop } from "@/components/BrandLoader";
@@ -18,6 +24,9 @@ export default function LoginPage() {
   // Held between "credentials accepted" and the dashboard actually loading,
   // so the redirect never shows a bare, unstyled gap.
   const [navigating, setNavigating] = useState(false);
+  // Safety net: if the document navigation cannot complete, release the
+  // bridge instead of leaving the user on an endless loader.
+  const navTimerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const savedEmail = localStorage.getItem("remembered_email");
@@ -27,6 +36,28 @@ export default function LoginPage() {
       setPassword(savedPassword);
       setRemember(true);
     }
+  }, []);
+
+  useEffect(() => {
+    const clearBridgeTimer = () => {
+      if (navTimerRef.current !== undefined) {
+        window.clearTimeout(navTimerRef.current);
+        navTimerRef.current = undefined;
+      }
+    };
+    // A restored back/forward page must never come back mid-bridge.
+    const releaseBridge = () => {
+      clearBridgeTimer();
+      setNavigating(false);
+      setIsSubmitting(false);
+    };
+    window.addEventListener("pagehide", clearBridgeTimer);
+    window.addEventListener("pageshow", releaseBridge);
+    return () => {
+      clearBridgeTimer();
+      window.removeEventListener("pagehide", clearBridgeTimer);
+      window.removeEventListener("pageshow", releaseBridge);
+    };
   }, []);
 
   async function handleSubmit(e: FormEvent) {
@@ -81,9 +112,23 @@ export default function LoginPage() {
       // with. The dashboard document renders the identical overlay, so the
       // two sides join up with no unstyled gap in between.
       setNavigating(true);
-      await new Promise((resolve) => window.setTimeout(resolve, 110));
-      window.location.href = destination;
+      // Let the bridge paint before the document changes.
+      navTimerRef.current = window.setTimeout(() => {
+        navTimerRef.current = undefined;
+        setNavigating(false);
+        setIsSubmitting(false);
+        setError(
+          "We couldn't open your dashboard. Please check your connection and try again."
+        );
+      }, 8000);
+      await new Promise((resolve) => window.setTimeout(resolve, 140));
+      window.location.assign(destination);
     } catch (err: any) {
+      if (navTimerRef.current !== undefined) {
+        window.clearTimeout(navTimerRef.current);
+        navTimerRef.current = undefined;
+      }
+      setNavigating(false);
       setError(err.message || "An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -117,18 +162,35 @@ export default function LoginPage() {
         }
         .login-scope .text-ink-muted { color: #71798A; }
         .login-scope .text-ink { color: #2B3542; }
+        /* The busy background painting can swallow small caption text. */
+        .login-scope .login-footnote {
+          width: fit-content;
+          margin-left: auto;
+          margin-right: auto;
+          padding: 6px 14px;
+          border-radius: 999px;
+          color: #59647a;
+          background-color: rgba(255, 255, 255, 0.72);
+          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+          -webkit-backdrop-filter: blur(4px);
+          backdrop-filter: blur(4px);
+        }
+        .login-scope .login-field {
+          transition: box-shadow 180ms ease, background-color 180ms ease;
+        }
+        /* Warm gold focus glow, preserving the original neumorphic inset. */
+        .login-scope .login-field:focus,
+        .login-scope .login-field:focus-visible {
+          background-color: #e9edf3;
+          box-shadow:
+            inset 4px 4px 8px #b7c1d1,
+            inset -4px -4px 8px #ffffff,
+            0 0 0 3px rgba(184, 134, 46, 0.16);
+        }
       `}</style>
-      <main
-        className="login-scope flex min-h-screen items-center justify-center px-4 py-10"
-        style={{
-          backgroundImage: "url('/images/new background.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundAttachment: "fixed",
-          backgroundRepeat: "no-repeat",
-        }}
-      >
-        <div className="login-enter w-full max-w-[400px]">
+      <main className="login-scope relative flex min-h-screen items-center justify-center px-4 py-10">
+        <div className="login-bg" aria-hidden="true" />
+        <div className="login-enter relative z-10 w-full max-w-[400px]">
           <div className="neu-raised rounded-neu px-8 py-9 sm:px-10 sm:py-10">
             <div className="login-item" style={step(60)}>
               <Logo />
@@ -149,7 +211,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your Username"
-                  className="neu-pressed neu-focus rounded-2xl px-4 py-3 text-[14px] text-ink placeholder:text-ink-muted/60 outline-none"
+                  className="login-field neu-pressed neu-focus rounded-2xl px-4 py-3 text-[14px] text-ink placeholder:text-ink-muted/60 outline-none"
                 />
               </div>
 
@@ -177,7 +239,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="neu-pressed neu-focus w-full rounded-2xl px-4 py-3 pr-12 text-[14px] text-ink placeholder:text-ink-muted/60 outline-none"
+                    className="login-field neu-pressed neu-focus w-full rounded-2xl px-4 py-3 pr-12 text-[14px] text-ink placeholder:text-ink-muted/60 outline-none"
                   />
                   <button
                     type="button"
@@ -193,8 +255,7 @@ export default function LoginPage() {
               {error && (
                 <p
                   role="alert"
-                  className="login-item text-[13px] text-red-600"
-                  style={step(220)}
+                  className="login-error-in text-[13px] text-red-600"
                 >
                   {error}
                 </p>
@@ -245,7 +306,7 @@ export default function LoginPage() {
           </div>
 
           <p
-            className="login-item mt-6 text-center text-[13px] text-ink-muted"
+            className="login-item login-footnote mt-6 text-center text-[13px] text-ink-muted"
             style={step(380)}
           >
             Need access? Contact your administrator.
@@ -258,19 +319,15 @@ export default function LoginPage() {
           instead of a bare reload. */}
       {navigating && (
         <div
-          className="loading-overlay"
+          className="loading-overlay is-loader"
           role="status"
           aria-live="polite"
           aria-busy="true"
         >
-          <BrandLoaderBackdrop />
+          <BrandLoaderBackdrop variant="loader" />
           {/* No measurable progress here, so the bar stays indeterminate
               rather than pretending to know a percentage. */}
-          <BrandLoader
-            variant="loader"
-            indeterminate
-            label="Signing you in…"
-          />
+          <BrandLoader variant="loader" label="Signing you in…" />
         </div>
       )}
     </>

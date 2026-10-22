@@ -88,7 +88,7 @@ export default async function WorkforcePage({
     supabase
       .from("outputs")
       .select(
-        "id, employee_id, date, title, attachment_type, attachment_url, status, reviewer_notes, reviewed_by, created_at, reviewer:profiles!outputs_reviewed_by_fkey(full_name)"
+        "id, employee_id, date, title, attachment_type, attachment_url, content, file_name, status, reviewer_notes, reviewed_by, created_at, reviewer:profiles!outputs_reviewed_by_fkey(full_name)"
       )
       .eq("date", date)
       .order("created_at", { ascending: false }),

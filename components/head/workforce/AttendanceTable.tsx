@@ -7,6 +7,7 @@ import { CheckCircle2, ChevronDown, Clock3, Hourglass, XCircle } from "lucide-re
 import { Profile, Session, Output } from "@/lib/types";
 import { formatHours } from "@/lib/attendance";
 import { OutputStatusPill } from "@/components/StatusPill";
+import SubmissionAction from "@/components/shared/SubmissionAction";
 import { createClient } from "@/lib/supabase/client";
 
 export interface AttendanceRow {
@@ -460,16 +461,20 @@ export default function AttendanceTable({ rows }: { rows: AttendanceRow[] }) {
                         {row.outputs.map((o) => (
                           <li
                             key={o.id}
-                            className="flex items-center justify-between rounded-xl bg-white p-2.5 border border-slate-100 text-xs"
+                            className="flex items-center justify-between gap-2 rounded-xl bg-white p-2.5 border border-slate-100 text-xs"
                           >
-                            <a
-                              href={o.attachment_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="font-medium text-blue-600 hover:underline"
-                            >
-                              {o.title || o.attachment_type}
-                            </a>
+                            <SubmissionAction
+                              type={o.attachment_type}
+                              title={o.title || "Deliverable"}
+                              url={o.attachment_url}
+                              content={o.content}
+                              outputId={o.id}
+                              fileName={o.file_name}
+                              date={o.date}
+                              variant="inline"
+                              label={o.title || "Deliverable"}
+                              className="min-w-0 truncate text-left font-medium text-blue-600 hover:underline"
+                            />
                             <div className="flex items-center gap-2">
                               <OutputStatusPill status={o.status} />
                               <Link

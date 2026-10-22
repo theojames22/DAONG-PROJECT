@@ -583,25 +583,32 @@ body {
 }
 
 /* =====================================================================
-   OPENING ANIMATION · LOADING SCREEN · ENTRANCE SYSTEM
+   OPENING ANIMATION · LOADING SCREEN
    ---------------------------------------------------------------------
    The overlay is mounted once in the root layout, so it appears on every
    full page load: opening the site, the login page, and the post-login
    dashboard redirects. Client-side (next/link) navigations do not remount
    the layout, so nothing flashes on internal links.
 
-   LoadingScreen picks one of two variants on mount:
-     · is-intro  — the cinematic opening. Plays once per browser session
-                   and only when the app is about to reveal the login page.
-     · is-loader — the premium progress loader. Its bar is honest: it ramps
-                   towards 90% and only completes once the document has
-                   genuinely finished loading (with a hard cap, so it can
-                   never trap the user).
+   Two variants share one visual language:
+     · is-intro  — the cinematic opening for the sign-in screen. Plays
+                   once per browser session: a blue field, drifting light,
+                   three waves and a fisherman's boat beneath the lockup.
+     · is-loader — the calm loader for every other load (a refresh, or the
+                   redirect into a dashboard). It adapts to the dark theme.
 
-   Everything below animates transform/opacity only — no layout work — and
+   The loader's bar is honest: initialization cannot be measured as a
+   percentage, so the indicator is indeterminate, and a hard cap in
+   LoadingScreen guarantees it can never trap the user.
+
+   Everything here animates transform/opacity only — no layout work — and
    the global prefers-reduced-motion block earlier in this file disables
-   all of it.
+   all of it. LoadingScreen also skips the overlay entirely for those
+   users, so nobody sits through motion they asked not to see.
    ===================================================================== */
+
+/* ---------- Overlay shell ---------- */
+
 .loading-overlay {
   position: fixed;
   inset: 0;
@@ -610,372 +617,821 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background-color: var(--base);
-  transition: opacity 420ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* Transparent, not opaque: the fading .loading-field reveals the real
+     page underneath, so the hand-off is a dissolve, never a cut. */
+  background-color: transparent;
+  transition: opacity 780ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* CSS-only escape hatch: if JS never takes over, the page is revealed. */
+  animation: loadingFailsafe 0ms 9000ms forwards;
 }
+
+@keyframes loadingFailsafe {
+  /* Deliberately does not animate opacity: the overlay's own opacity
+     transition must stay free to run the normal exit. If JS never takes
+     over, this simply reveals the page at nine seconds. */
+  to {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
 .loading-overlay.is-exiting {
   opacity: 0;
   pointer-events: none;
 }
 
-/* Clear the artwork *before* the backdrop dissolves, so the hand-off never
-   reads as two overlapping screens — just rising art on a fading field.
-   !important is required to beat the entrance animations' fill-forwards. */
-.loading-overlay.is-exiting .loading-stage,
-.loading-overlay.is-exiting .loading-backdrop,
-.loading-overlay.is-exiting .loading-skip {
-  opacity: 0 !important;
-}
-
-/* ---------- Atmospheric backdrop (shared by both variants) ---------- */
+/* ---------- Atmospheric field (shared by both variants) ---------- */
 
 .loading-backdrop {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  transition: opacity 200ms ease;
+  transition: opacity 780ms ease;
 }
 
-/* Two pools of soft blue light. The fade-in and the endless drift live on
-   separate elements on purpose: one animation can then loop forever
-   without ever replaying the entrance. */
-.loading-aurora {
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  width: min(720px, 128vw);
-  transform: translate(-50%, -50%);
+.loading-overlay.is-exiting .loading-backdrop {
   opacity: 0;
-  animation: loadingFadeIn 1500ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.loading-aurora > span {
-  display: block;
-  width: 100%;
+
+.loading-field {
+  position: absolute;
+  inset: 0;
+  background-color: #f4f7fc;
+  background-image: radial-gradient(
+    60% 55% at 50% 36%,
+    #dce9ff 0%,
+    #eaf1ff 42%,
+    #f5f8fe 100%
+  );
+}
+
+.dark .loading-field {
+  background-color: #070b14;
+  background-image: radial-gradient(
+    60% 55% at 50% 36%,
+    #16223a 0%,
+    #0c1424 42%,
+    #070b14 100%
+  );
+}
+
+/* Two pools of soft light, drifting forever. The entrance is left to the
+   overlay's own fade-in so the loop can run without ever replaying it. */
+.loading-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.loading-blob-1 {
+  left: -10%;
+  top: -18%;
+  width: 62%;
   aspect-ratio: 1 / 1;
-  border-radius: 9999px;
   background-image: radial-gradient(
-    closest-side,
-    rgba(37, 99, 235, 0.2),
-    rgba(37, 99, 235, 0.07) 58%,
-    rgba(37, 99, 235, 0) 76%
+    circle,
+    rgba(76, 139, 255, 0.22),
+    rgba(76, 139, 255, 0) 66%
   );
-  animation: loadingDrift 24s ease-in-out infinite;
+  animation: loadingBlobDrift 15s ease-in-out infinite alternate;
 }
-.loading-aurora-2 {
-  top: 88%;
-  width: min(1180px, 180vw);
-  animation-delay: 220ms;
-}
-.loading-aurora-2 > span {
+.loading-blob-2 {
+  right: -14%;
+  top: 6%;
+  width: 58%;
+  aspect-ratio: 1 / 1;
   background-image: radial-gradient(
-    closest-side,
-    rgba(59, 130, 246, 0.16),
-    rgba(59, 130, 246, 0) 72%
+    circle,
+    rgba(37, 99, 235, 0.14),
+    rgba(37, 99, 235, 0) 66%
   );
-  animation-duration: 32s;
-  animation-direction: reverse;
+  animation: loadingBlobDrift 19s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes loadingBlobDrift {
+  from {
+    transform: translate(-30px, 10px);
+  }
+  to {
+    transform: translate(34px, -18px);
+  }
+}
+
+/* Faint water lines settling along the bottom of the loader. */
+.loading-lines {
+  position: absolute;
+  left: -40px;
+  right: -40px;
+  bottom: 0;
+  height: 360px;
+  pointer-events: none;
+  animation: loadingFadeIn 900ms ease both;
+}
+.loading-lines svg {
+  width: calc(100% + 80px);
+  height: 100%;
+  fill: none;
+  stroke: #c9d9f5;
+  stroke-width: 1.2;
+  animation: loadingLinesDrift 18s ease-in-out infinite alternate;
+}
+
+.dark .loading-lines svg {
+  stroke: #2f4a7d;
 }
 
 @keyframes loadingFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-@keyframes loadingDrift {
-  0%,
-  100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(-2.5%, 1.6%, 0) scale(1.06); }
+@keyframes loadingLinesDrift {
+  from {
+    transform: translateX(-24px);
+  }
+  to {
+    transform: translateX(24px);
+  }
 }
 
-/* Faint water lines settling along the bottom edge. */
-.loading-waves {
-  position: absolute;
-  left: -10%;
-  right: -10%;
-  bottom: 0;
-  height: 42%;
-  opacity: 0;
-  background-image: repeating-linear-gradient(
-    180deg,
-    rgba(37, 99, 235, 0.07) 0px,
-    rgba(37, 99, 235, 0.07) 1px,
-    rgba(37, 99, 235, 0) 1px,
-    rgba(37, 99, 235, 0) 20px
-  );
-  -webkit-mask-image: radial-gradient(
-    130% 92% at 50% 108%,
-    #000 18%,
-    rgba(0, 0, 0, 0) 76%
-  );
-  mask-image: radial-gradient(
-    130% 92% at 50% 108%,
-    #000 18%,
-    rgba(0, 0, 0, 0) 76%
-  );
-  animation: loadingWavesIn 1800ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both;
-}
-
-@keyframes loadingWavesIn {
-  from { opacity: 0; transform: translateY(28px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ---------- Focal mark ---------- */
+/* ---------- Stage ---------- */
 
 .loading-stage {
   position: relative;
   z-index: 1;
+}
+
+/* ---------- Intro: waves, lockup and boat ---------- */
+
+.loading-stage.is-intro {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Three tiers of water. Each tier fades on exit, its inner wrapper carries
+   the entrance and the SVG itself drifts — three separate elements so no
+   animation ever fights another for the same property. */
+.loading-wave {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: opacity 700ms ease;
+}
+.loading-wave-1 {
+  height: 250px;
+}
+.loading-wave-2 {
+  height: 200px;
+}
+.loading-wave-3 {
+  height: 150px;
+}
+
+.loading-overlay.is-exiting .loading-wave {
+  opacity: 0;
+}
+
+.loading-wave-in {
+  position: absolute;
+  inset: 0;
+  animation: loadingWaveIn 1300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.loading-wave-1 .loading-wave-in {
+  animation-delay: 50ms;
+}
+.loading-wave-2 .loading-wave-in {
+  animation-delay: 200ms;
+}
+.loading-wave-3 .loading-wave-in {
+  animation-delay: 350ms;
+}
+
+.loading-wave-drift {
+  position: absolute;
+  left: -60px;
+  bottom: 0;
+  width: calc(100% + 120px);
+  height: 100%;
+  animation: loadingWaveDrift 10s ease-in-out infinite alternate;
+}
+.loading-wave-1 .loading-wave-drift {
+  fill: #d9e6fb;
+}
+.loading-wave-2 .loading-wave-drift {
+  fill: #c6d9f8;
+  animation-duration: 12s;
+}
+.loading-wave-3 .loading-wave-drift {
+  fill: #b3cdf5;
+  animation-duration: 14s;
+}
+
+.dark .loading-wave-1 .loading-wave-drift {
+  fill: #1a2740;
+}
+.dark .loading-wave-2 .loading-wave-drift {
+  fill: #16203a;
+}
+.dark .loading-wave-3 .loading-wave-drift {
+  fill: #121a31;
+}
+
+@keyframes loadingWaveIn {
+  from {
+    opacity: 0;
+    transform: translateY(80px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes loadingWaveDrift {
+  from {
+    transform: translateX(-32px);
+  }
+  to {
+    transform: translateX(32px);
+  }
+}
+
+/* The lockup sits just above centre so the boat owns the foreground.
+   The explicit width matters: an absolutely positioned box with only
+   `left: 50%` shrink-to-fits against HALF the viewport, which would wrap
+   the tagline into a narrow column on phones. */
+.loading-lockup {
+  position: absolute;
+  left: 50%;
+  top: 37%;
+  width: min(92vw, 560px);
+  transform: translate(-50%, -50%);
+}
+
+.loading-lockup-exit {
+  transition: opacity 500ms ease, transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.loading-overlay.is-exiting .loading-lockup-exit {
+  opacity: 0;
+  transform: translateY(-34px);
+}
+
+.loading-lockup-in {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 26px;
-  padding: 24px;
-  text-align: center;
-  transition: opacity 200ms ease;
+  padding: 34px 56px;
+  animation: loadingLockupIn 900ms cubic-bezier(0.2, 0.8, 0.2, 1) 150ms both;
 }
 
-.loading-mark {
-  position: relative;
-  display: grid;
-  place-items: center;
-}
-
-/* The loader brings the mark up gently … */
-.loading-stage.is-loader .loading-mark {
-  animation: loadingMarkIn 640ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-/* … while the opening lets the boat arrive from below the fold. */
-.loading-stage.is-intro .loading-mark {
-  animation: loadingMarkRise 1150ms cubic-bezier(0.16, 1, 0.3, 1) 60ms both;
-}
-
-@keyframes loadingMarkIn {
-  from { opacity: 0; transform: translateY(22px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes loadingMarkRise {
-  from { opacity: 0; transform: translateY(120px) scale(0.9); }
-  60%  { opacity: 1; }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* Soft blue halo behind the mark. */
-.loading-halo {
+.loading-glow {
   position: absolute;
-  inset: -30%;
-  border-radius: 9999px;
+  left: 50%;
+  top: 50%;
+  width: min(380px, 92vw);
+  aspect-ratio: 1 / 1;
+  margin-left: min(-190px, -46vw);
+  margin-top: min(-190px, -46vw);
+  border-radius: 50%;
   background-image: radial-gradient(
-    closest-side,
-    rgba(37, 99, 235, 0.24),
-    rgba(37, 99, 235, 0.06) 62%,
-    rgba(37, 99, 235, 0) 78%
+    circle,
+    rgba(37, 99, 235, 0.3),
+    rgba(37, 99, 235, 0) 64%
   );
-  opacity: 0;
-  animation: loadingHaloIn 1300ms cubic-bezier(0.22, 1, 0.36, 1) 380ms both;
+  pointer-events: none;
+  animation: loadingGlowIn 1900ms cubic-bezier(0.2, 0.8, 0.2, 1) 250ms both;
 }
 
-@keyframes loadingHaloIn {
-  from { opacity: 0; transform: scale(0.68); }
-  to   { opacity: 1; transform: scale(1); }
+@keyframes loadingLockupIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.loading-frame {
+@keyframes loadingGlowIn {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* The clip is what the light sweep sweeps across. */
+.loading-lockup-clip {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 6px 22px;
+  border-radius: 26px;
+}
+
+/* The brand mark lives in a white/ice tile. The emblem (fisherman, boat
+   and clock) is cropped out of the full logo, so the wordmark below is the
+   only "Daong" on screen — the mask hides the baked-in lettering that sits
+   just under the emblem in the source file. */
+.loading-tile {
   position: relative;
   display: block;
-  width: 128px;
-  height: 128px;
+  width: 92px;
+  height: 92px;
+  border-radius: 28px;
   overflow: hidden;
-  border-radius: 9999px;
   background-image: linear-gradient(180deg, #ffffff, #eef4ff);
   box-shadow:
     0 1px 2px rgba(15, 23, 42, 0.06),
-    0 20px 48px -20px rgba(37, 99, 235, 0.55),
+    0 22px 40px -18px rgba(37, 99, 235, 0.55),
     inset 0 0 0 1px rgba(37, 99, 235, 0.12);
 }
-.loading-frame img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-/* One soft pass of light across the mark, clipped to the circle. */
-.loading-sweep {
+.loading-tile img {
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  overflow: hidden;
-  pointer-events: none;
-}
-.loading-sweep::after {
-  content: "";
-  position: absolute;
-  top: -45%;
-  bottom: -45%;
-  left: 0;
-  width: 42%;
-  background-image: linear-gradient(
-    100deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.9) 50%,
-    rgba(255, 255, 255, 0) 100%
+  top: 4.88%;
+  left: -55.85%;
+  width: 211.37%;
+  height: auto;
+  max-width: none;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 66%,
+    rgba(0, 0, 0, 0) 68%
   );
-  transform: translateX(-130%) skewX(-16deg);
-  animation: loadingSweep 1250ms cubic-bezier(0.4, 0, 0.2, 1) 780ms both;
+  mask-image: linear-gradient(to bottom, #000 66%, rgba(0, 0, 0, 0) 68%);
 }
 
-@keyframes loadingSweep {
-  from { opacity: 0; transform: translateX(-130%) skewX(-16deg); }
-  12%  { opacity: 1; }
-  88%  { opacity: 1; }
-  to   { opacity: 0; transform: translateX(330%) skewX(-16deg); }
+.dark .loading-tile {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 22px 40px -18px rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px rgba(148, 163, 184, 0.28);
+}
+
+.loading-lockup-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  text-align: center;
+}
+
+.loading-brandname {
+  font-family: var(--font-manrope), Manrope, sans-serif;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: #0f1b33;
+}
+
+.loading-stage.is-intro .loading-brandname {
+  font-size: clamp(40px, 5vw, 52px);
 }
 
 .loading-tagline {
-  max-width: 34ch;
-  font-size: 12.5px;
-  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  font-family: var(--font-manrope), Manrope, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   line-height: 1.55;
-  color: var(--ink-muted);
+  color: #5f6a80;
+}
+
+/* One soft pass of light across the tile and wordmark, clipped to the
+   rounded lockup. */
+.loading-sweep {
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  width: 55%;
+  background-image: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 20%,
+    rgba(255, 255, 255, 0.85) 50%,
+    rgba(255, 255, 255, 0) 80%
+  );
+  pointer-events: none;
+  animation: loadingSweep 1250ms cubic-bezier(0.4, 0, 0.2, 1) 950ms both;
+}
+
+@keyframes loadingSweep {
+  from {
+    transform: translateX(-140%);
+  }
+  to {
+    transform: translateX(260%);
+  }
+}
+
+/* The boat: positioned by the outer box, lowered out of frame on exit,
+   raised into frame on entry, then left to bob on the swell. */
+.loading-boat {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  width: min(250px, 56vw);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.loading-boat-exit {
+  transition: opacity 550ms ease, transform 550ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.loading-overlay.is-exiting .loading-boat-exit {
   opacity: 0;
-  animation: loadingTaglineIn 900ms cubic-bezier(0.22, 1, 0.36, 1) 880ms both;
+  transform: translateY(48px);
 }
 
-@keyframes loadingTaglineIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+.loading-boat-rise {
+  position: relative;
+  animation: loadingBoatIn 1600ms cubic-bezier(0.16, 0.84, 0.24, 1) 450ms both;
 }
 
-/* ---------- Slim progress indicator ---------- */
+.loading-boat-bob {
+  position: relative;
+  transform-origin: 50% 90%;
+  animation: loadingBoatBob 6s ease-in-out 2100ms infinite;
+}
 
-.loading-progress {
+.loading-boat-bob svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@keyframes loadingBoatIn {
+  from {
+    opacity: 0;
+    transform: translateY(190px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes loadingBoatBob {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-3px) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(0deg);
+  }
+  75% {
+    transform: translateY(-2px) rotate(1deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+.loading-ripples {
+  position: relative;
+  height: 0;
+}
+
+.loading-ripple {
+  position: absolute;
+  left: 50%;
+  top: -26px;
+  width: 230px;
+  height: 30px;
+  margin-left: -115px;
+  border: 1.5px solid rgba(37, 99, 235, 0.45);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  animation: loadingRipple 3200ms ease-out 1700ms infinite;
+}
+.loading-ripple-2 {
+  animation-delay: 2800ms;
+}
+
+.dark .loading-ripple {
+  border-color: rgba(120, 165, 245, 0.4);
+}
+
+@keyframes loadingRipple {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.55);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+/* ---------- Loader ---------- */
+
+.loading-stage.is-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(20px, 3vh, 28px);
+  padding: 24px;
+  text-align: center;
+  transition: opacity 420ms ease,
+    transform 420ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.loading-overlay.is-exiting .loading-stage.is-loader {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.99);
+}
+
+.loading-loader-glow {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: min(360px, 82vw);
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background-image: radial-gradient(
+    circle,
+    rgba(37, 99, 235, 0.18),
+    rgba(37, 99, 235, 0) 64%
+  );
+  pointer-events: none;
+  animation: loadingFadeIn 1400ms ease both;
+}
+
+.loading-loader-mark {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  width: min(320px, 72vw);
-  opacity: 0;
-  animation: loadingProgressIn 700ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
+  animation: loadingLockupIn 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 100ms both;
 }
 
-@keyframes loadingProgressIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+.loading-stage.is-loader .loading-tile {
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+}
+
+.loading-stage.is-loader .loading-brandname {
+  font-size: 34px;
+}
+
+.loading-progress {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: loadingLockupIn 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 220ms both;
 }
 
 .loading-track {
   position: relative;
-  width: 100%;
-  height: 6px;
+  height: 4px;
+  width: 240px;
+  max-width: 70vw;
   overflow: hidden;
-  border-radius: 999px;
-  background-color: rgba(37, 99, 235, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
+  border-radius: 99px;
+  background-color: #d9e5fa;
 }
 
-.loading-fill {
-  height: 100%;
-  width: 0;
-  border-radius: 999px;
-  background-image: linear-gradient(90deg, var(--accent-light), var(--accent));
-  box-shadow: 0 0 12px rgba(37, 99, 235, 0.45);
-  will-change: width;
+.dark .loading-track {
+  background-color: rgba(148, 163, 184, 0.22);
 }
 
-/* Indeterminate mode — used when real progress cannot be measured, so no
-   fabricated percentage is ever presented as the truth. */
-.loading-track.is-indeterminate .loading-fill {
-  width: 36%;
-  animation: loadingIndeterminate 1300ms cubic-bezier(0.45, 0, 0.35, 1) infinite;
+.loading-shuttle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38%;
+  border-radius: 99px;
+  background-image: linear-gradient(90deg, #2563eb, #4c8bff);
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.75);
+  animation: loadingShuttle 1400ms cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
 
-@keyframes loadingIndeterminate {
-  from { transform: translateX(-115%); }
-  to   { transform: translateX(310%); }
+@keyframes loadingShuttle {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(270%);
+  }
 }
 
 .loading-label {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--ink-muted);
+  font-family: var(--font-manrope), Manrope, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #33405a;
 }
 
-/* Discreet escape hatch — the opening is short, but nobody is locked in. */
+.dark .loading-label {
+  color: #aab8cf;
+}
+
+.dark .loading-brandname {
+  color: #e8eef9;
+}
+
+.dark .loading-tagline {
+  color: #9fb0c9;
+}
+
+/* ---------- Discreet escape hatch ---------- */
+
 .loading-skip {
   position: absolute;
-  right: 20px;
-  bottom: 20px;
-  z-index: 2;
-  padding: 9px 16px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--ink-muted);
-  background-color: rgba(255, 255, 255, 0.78);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.06),
-    inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+  left: 50%;
+  bottom: max(26px, env(safe-area-inset-bottom, 0px));
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1.5px solid rgba(213, 224, 245, 0.9);
+  border-radius: 99px;
+  background-color: rgba(255, 255, 255, 0.85);
+  color: #1d4fd8;
+  font-family: var(--font-manrope), Manrope, sans-serif;
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transform: translateX(-50%);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
-  cursor: pointer;
   opacity: 0;
-  animation: loadingFadeIn 500ms ease 1000ms both;
-  transition: color 180ms ease, box-shadow 180ms ease;
+  animation: loadingFadeIn 500ms ease 900ms both;
+  transition: opacity 300ms ease, background-color 200ms ease,
+    border-color 200ms ease, transform 200ms ease;
 }
 .loading-skip:hover {
-  color: var(--accent);
-  box-shadow:
-    0 2px 6px rgba(15, 23, 42, 0.08),
-    inset 0 0 0 1px rgba(37, 99, 235, 0.24);
+  background-color: #eef3ff;
+  border-color: #b7cbf3;
+  transform: translateX(-50%) translateY(-1px);
 }
 .loading-skip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
+  outline: 3px solid #8fb0ff;
+  outline-offset: 2px;
 }
-/* The pill is white-on-light by default; in dark mode the translucent white
-   would leave `--ink-muted` (a light grey) unreadable on it. */
 .dark .loading-skip {
-  color: var(--ink);
-  background-color: rgba(30, 41, 59, 0.82);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    inset 0 0 0 1px rgba(148, 163, 184, 0.2);
+  border-color: rgba(148, 163, 184, 0.3);
+  background-color: rgba(30, 41, 59, 0.85);
+  color: #afc3e8;
 }
 .dark .loading-skip:hover {
-  color: var(--accent-light);
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1px rgba(96, 165, 250, 0.4);
+  border-color: rgba(148, 163, 184, 0.5);
+  background-color: rgba(51, 65, 85, 0.9);
 }
 
-/* ---------- Login entrance ----------
-   Gated on `data-app-ready`, which LoadingScreen flips the exact frame the
-   overlay starts fading — so the card's entrance and the fade read as one
-   continuous motion instead of two separate steps. */
+/* is-exiting is set the instant Skip is used, so the pill leaves with the
+   rest of the scene instead of hovering over the revealed page.
+   !important is needed to beat the entrance animation's fill-forwards. */
+.loading-overlay.is-exiting .loading-skip {
+  opacity: 0 !important;
+}
+
+/* ---------- Short and narrow viewports ---------- */
+
+@media (max-height: 620px) {
+  .loading-stage.is-loader {
+    gap: 14px;
+  }
+  .loading-lockup-in {
+    padding: 20px 32px;
+  }
+  .loading-tagline {
+    display: none;
+  }
+  .loading-boat {
+    bottom: 54px;
+  }
+}
+
+@media (max-width: 420px) {
+  .loading-lockup-in {
+    padding: 26px 20px;
+  }
+  .loading-lockup-clip {
+    padding: 4px 12px;
+  }
+  .loading-tile {
+    width: 80px;
+    height: 80px;
+    border-radius: 24px;
+  }
+  .loading-stage.is-intro .loading-brandname {
+    font-size: clamp(34px, 11vw, 44px);
+  }
+  .loading-stage.is-loader .loading-tile {
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+  }
+  .loading-stage.is-loader .loading-brandname {
+    font-size: 30px;
+  }
+}
+
+/* =====================================================================
+   LOGIN — background layer + transition
+   ---------------------------------------------------------------------
+   The gold/neumorphic login palette is intentionally preserved. Only the
+   entrance choreography and focus feedback live here.
+   ===================================================================== */
+
+/* Fixed layer instead of background-attachment: fixed (which janks on iOS). */
+.login-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("/images/new background.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 @keyframes loginEnter {
-  from { opacity: 0; transform: translateY(16px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes loginItemIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes loginErrorIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 html[data-app-ready="true"] .login-enter {
-  /* The 90ms beat lets the overlay's artwork clear first, so the card rises
+  /* The 80ms beat lets the overlay's artwork clear first, so the card rises
      into a clean field instead of on top of the loading text. */
-  animation: loginEnter 620ms cubic-bezier(0.2, 0.8, 0.2, 1) 90ms both;
+  animation: loginEnter 620ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms both;
 }
 
 html[data-app-ready="true"] .login-item {
-  animation: loginItemIn 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: loginItemIn 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   animation-delay: var(--login-delay, 40ms);
 }
 
-/* ---------- Dashboard entrance ----------
+/* Live validation/auth errors should never inherit the initial stagger. */
+.login-error-in {
+  animation: loginErrorIn 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* =====================================================================
+   DASHBOARD — entrance language
+   ---------------------------------------------------------------------
    Plays when a page mounts — and never on a router.refresh(), a Supabase
    realtime update, a clock tick or a local state change, because those all
    re-render without remounting. Mark a block `enter-up` and give it one of
@@ -985,23 +1441,52 @@ html[data-app-ready="true"] .login-item {
    cascade behind the loading overlay: the dashboard rises exactly as the
    overlay hands over. Internal navigations already have the flag set, so
    they animate on mount like normal. If the flag is never set, no
-   animation applies at all — the content simply renders visible. */
+   animation applies at all — the content simply renders visible.
+   ===================================================================== */
+
 @keyframes enterUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 html[data-app-ready="true"] .enter-up {
-  animation: enterUp 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: enterUp 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   animation-delay: var(--enter-delay, 0ms);
 }
 
-.enter-d1 { --enter-delay: 70ms; }
-.enter-d2 { --enter-delay: 140ms; }
-.enter-d3 { --enter-delay: 210ms; }
-.enter-d4 { --enter-delay: 280ms; }
-.enter-d5 { --enter-delay: 350ms; }
-.enter-d6 { --enter-delay: 420ms; }
+.enter-d1 {
+  --enter-delay: 70ms;
+}
+.enter-d2 {
+  --enter-delay: 140ms;
+}
+.enter-d3 {
+  --enter-delay: 210ms;
+}
+.enter-d4 {
+  --enter-delay: 280ms;
+}
+.enter-d5 {
+  --enter-delay: 350ms;
+}
+.enter-d6 {
+  --enter-delay: 420ms;
+}
+
+/* Page-level fade animations were previously playing behind the overlay
+   and finishing before anyone saw them. Hold their start until the
+   overlay hands over; on later client-side navigations the flag is
+   already true, so they play on mount as normal. */
+html:not([data-app-ready="true"]) [data-dashboard] .animate-fade-in,
+html:not([data-app-ready="true"]) [data-dashboard] .animate-fade-up {
+  animation: none !important;
+}
 
 /* ---------- Micro-interaction: soft lift for cards ---------- */
 .card-lift {
@@ -1021,7 +1506,55 @@ html[data-app-ready="true"] .enter-up {
     0 18px 40px -18px rgba(0, 0, 0, 0.7);
 }
 
-/* Visible keyboard focus, kept crisp against the soft shadows */
+/* ---------- Modals and dropdowns ---------- */
+/* The modal scale-in itself is defined near the top of this file; these add
+   the supporting backdrops and anchored popovers. */
+
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes drawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-backdrop-in {
+  animation: backdropIn 220ms ease both;
+}
+
+.animate-dropdown-in {
+  transform-origin: top right;
+  animation: dropdownIn 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-drawer-in {
+  animation: drawerIn 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Visible keyboard focus, kept crisp against the soft shadows. */
 .neu-focus:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 3px;
@@ -1034,15 +1567,6 @@ html[data-app-ready="true"] .enter-up {
   outline: 2px solid #2563eb;
   outline-offset: 3px;
   border-radius: 8px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-delay: 0ms !important;
-    animation-iteration-count: 1 !important;
-  }
 }
 
 /* =====================================================================

@@ -222,8 +222,8 @@ export default function NotificationBell({ userId, userName, role, variant = "ne
     ? "focus-ring relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-slate-500 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:border-accent/30 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300"
     : "neu-icon-btn neu-focus relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-500 transition-colors hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300";
   const panelClass = flat
-    ? "card absolute right-0 top-12 z-[100] flex max-h-[520px] w-[360px] flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl border border-slate-200/90"
-    : "neu-raised absolute right-0 top-12 z-[100] flex max-h-[520px] w-[360px] flex-col overflow-hidden rounded-container bg-white dark:bg-slate-800 shadow-2xl";
+    ? "card absolute right-0 top-12 z-[100] flex max-h-[520px] w-[360px] flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl border border-slate-200/90 animate-dropdown-in"
+    : "neu-raised absolute right-0 top-12 z-[100] flex max-h-[520px] w-[360px] flex-col overflow-hidden rounded-container bg-white dark:bg-slate-800 shadow-2xl animate-dropdown-in";
   const inputClass = flat
     ? "focus-ring w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12.5px] text-ink outline-none"
     : "elev-pressed neu-focus rounded-lg px-2.5 py-1.5 text-[12.5px] text-ink outline-none";

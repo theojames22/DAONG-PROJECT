@@ -12,35 +12,36 @@ import BrandLoader, { BrandLoaderBackdrop } from "@/components/BrandLoader";
 /* Opening animation + loading screen
    ---------------------------------------------------------------------
    Progress model
-   A time-based ease-out ramp carries the bar towards 90%. The final 10%
-   waits for the page to genuinely finish loading (window `load` event /
-   webfonts), so the bar never fake-finishes. A hard cap guarantees it can
-   never get stuck, and reduced-motion users skip straight to the content.
+   The app cannot honestly measure server rendering, auth hydration and
+   asset readiness as a percentage, so the loader is indeterminate. It
+   never fabricates a value. A hard cap guarantees it can never get
+   stuck, and reduced-motion users skip straight to the content.
 
    Variants
    `intro`  — the cinematic opening. Plays once per browser session, and
               only when the app is about to reveal the login page.
-   `loader` — the premium progress loader for every other full page load
+   `loader` — the premium loader for every other full page load
               (a refresh, or the post-login redirect into a dashboard).
 
    The overlay is mounted once in the root layout, so client-side
    navigations never show it again. */
 
-const RAMP_MS = 1200;
-const HOLD_MS = 260;
-const FADE_MS = 420; // keep in sync with .loading-overlay's opacity transition
-const MAX_MS = 5000;
+const LOADER_MIN_MS = 800;
+const LOADER_MAX_MS = 6000;
 
 // The opening is a timed cinematic: it never shows for less than INTRO_MIN_MS
 // and never stretches past INTRO_MAX_MS, so it always lands in the intended
 // two-to-three second window even on a slow connection.
-const INTRO_MIN_MS = 2300;
-const INTRO_HOLD_MS = 300;
-const INTRO_MAX_MS = 3100;
+const INTRO_MIN_MS = 2200;
+const INTRO_MAX_MS = 2800;
+
+// Keep in sync with .loading-overlay's opacity transition in globals.css.
+const EXIT_MS = 780;
 
 const INTRO_SESSION_KEY = "daong:intro-played";
 
 type Variant = "intro" | "loader";
+type Phase = "loading" | "exiting" | "done";
 
 /* Session storage can throw (private mode, blocked cookies). Failing closed
    is the safe default: the app must never get stuck behind the overlay. */
@@ -60,6 +61,53 @@ function rememberIntro() {
   }
 }
 
+/** Resolve when the mark is decoded, or on error. Never rejects. */
+function waitForMark(src: string) {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    const image = new Image();
+    image.onload = finish;
+    image.onerror = finish;
+    image.src = src;
+    if (image.complete) finish();
+    if (typeof image.decode === "function") {
+      image.decode().then(finish, finish);
+    }
+  });
+}
+
+/** Resolve when webfonts settle, or immediately where unsupported. */
+function waitForFonts() {
+  if (typeof document === "undefined" || !document.fonts?.ready) {
+    return Promise.resolve();
+  }
+  return document.fonts.ready.then(
+    () => undefined,
+    () => undefined
+  );
+}
+
+/** The overlay's CSS choreography starts at first paint, which can happen
+ *  before hydration. Measure from there so a slow JS load can never stretch
+ *  the opening far beyond its two-to-three second budget. */
+function getFirstPaintTime() {
+  try {
+    const entries = performance.getEntriesByType("paint");
+    const first =
+      entries.find((entry) => entry.name === "first-contentful-paint") ??
+      entries[0];
+    return first ? first.startTime : performance.now();
+  } catch {
+    return performance.now();
+  }
+}
+
 // useLayoutEffect warns during SSR; the decision has to run before the
 // first paint on the client, so use the isomorphic form.
 const useIsomorphicLayoutEffect =
@@ -68,9 +116,8 @@ const useIsomorphicLayoutEffect =
 export default function LoadingScreen() {
   const pathname = usePathname();
   const [variant, setVariant] = useState<Variant | null>(null);
-  const [phase, setPhase] = useState<"loading" | "exiting" | "done">("loading");
+  const [phase, setPhase] = useState<Phase>("loading");
 
-  const fillRef = useRef<HTMLDivElement>(null);
   /** The variant is decided exactly once, so a dev-mode double effect can
    *  never flip the overlay (or replay the intro) mid-flight. */
   const decisionRef = useRef<Variant | null>(null);
@@ -81,7 +128,7 @@ export default function LoadingScreen() {
     const root = document.documentElement;
 
     // Reduced motion: never make anyone sit through the opening or the ramp.
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       root.dataset.appReady = "true";
       setPhase("done");
       return;
@@ -99,31 +146,10 @@ export default function LoadingScreen() {
     document.body.classList.add("overflow-hidden");
 
     let frame = 0;
-    let holdTimer: number | undefined;
     let exitTimer: number | undefined;
+    let loadListener: (() => void) | undefined;
+    let cancelled = false;
     let finished = false;
-
-    // Flip the entrance trigger in the same frame the overlay starts
-    // fading, so the page's own entrance and the fade read as one
-    // continuous motion instead of two separate steps.
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      root.dataset.appReady = "true";
-      document.body.classList.remove("overflow-hidden");
-      setPhase("exiting");
-      exitTimer = window.setTimeout(() => setPhase("done"), FADE_MS);
-    };
-    skipRef.current = finish;
-
-    // The document is genuinely ready once the load event has fired and the
-    // webfonts have settled. Neither blocks the reveal past the hard cap.
-    let loaded = document.readyState === "complete";
-    const markLoaded = () => {
-      loaded = true;
-    };
-    window.addEventListener("load", markLoaded);
-    document.fonts?.ready.then(markLoaded, markLoaded);
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Enter" || event.key === " " || event.key === "Escape") {
@@ -133,7 +159,80 @@ export default function LoadingScreen() {
     // Any deliberate click or tap means "get on with it".
     const onPointerDown = () => finish();
 
-    const startedAt = performance.now();
+    const removeInteraction = () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      if (loadListener) {
+        window.removeEventListener("load", loadListener);
+        loadListener = undefined;
+      }
+    };
+
+    // Flip the entrance trigger in the same frame the overlay starts
+    // fading, so the page's own entrance and the fade read as one
+    // continuous motion instead of two separate steps.
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+
+      cancelAnimationFrame(frame);
+      window.clearTimeout(exitTimer);
+      removeInteraction();
+
+      root.dataset.appReady = "true";
+      document.body.classList.remove("overflow-hidden");
+      setPhase("exiting");
+      exitTimer = window.setTimeout(() => {
+        if (!cancelled) setPhase("done");
+      }, EXIT_MS);
+    };
+    skipRef.current = finish;
+
+    // Readiness is real: the document's load event, the webfonts, and the
+    // brand mark's decode. The intro's minimum still applies so the
+    // choreography can finish; every path is capped so nothing traps.
+    const signals: Array<Promise<unknown>> = [
+      waitForMark("/images/logo.png"),
+      waitForFonts(),
+    ];
+
+    if (document.readyState === "complete") {
+      signals.push(Promise.resolve());
+    } else {
+      signals.push(
+        new Promise<void>((resolve) => {
+          loadListener = () => {
+            loadListener = undefined;
+            resolve();
+          };
+          window.addEventListener("load", loadListener, { once: true });
+        })
+      );
+    }
+
+    let ready = false;
+    Promise.all(signals).then(
+      () => {
+        ready = true;
+      },
+      () => {
+        ready = true;
+      }
+    );
+
+    const startedAt = getFirstPaintTime();
+    const minMs = active === "intro" ? INTRO_MIN_MS : LOADER_MIN_MS;
+    const maxMs = active === "intro" ? INTRO_MAX_MS : LOADER_MAX_MS;
+
+    const tick = (now: number) => {
+      const elapsed = now - startedAt;
+      if (elapsed >= maxMs || (elapsed >= minMs && ready)) {
+        finish();
+        return;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
 
     if (active === "intro") {
       window.addEventListener("keydown", onKeyDown);
@@ -141,62 +240,13 @@ export default function LoadingScreen() {
         capture: true,
         passive: true,
       });
-
-      // Never cut the opening short just because the document happened to be
-      // ready early, and never hold it past INTRO_MAX_MS even if it wasn't.
-      const tickIntro = (now: number) => {
-        const elapsed = now - startedAt;
-        if ((elapsed >= INTRO_MIN_MS && loaded) || elapsed >= INTRO_MAX_MS) {
-          holdTimer = window.setTimeout(finish, INTRO_HOLD_MS);
-          return;
-        }
-        frame = requestAnimationFrame(tickIntro);
-      };
-      frame = requestAnimationFrame(tickIntro);
-    } else {
-      // Read the node on every frame: the ref is only attached once the
-      // variant markup has committed, which happens after this effect.
-      const setProgress = (value: number) => {
-        const fill = fillRef.current;
-        if (fill) fill.style.width = `${value * 100}%`;
-      };
-      setProgress(0);
-
-      let progress = 0;
-      let fullAt = 0;
-
-      const tick = (now: number) => {
-        const elapsed = now - startedAt;
-        if (elapsed > MAX_MS) loaded = true;
-
-        const ramp = 1 - Math.pow(1 - Math.min(elapsed / RAMP_MS, 1), 3); // easeOutCubic
-        const target = loaded ? 1 : ramp * 0.9;
-        progress += (target - progress) * (loaded ? 0.16 : 0.09);
-        if (loaded && progress > 0.995) progress = 1;
-
-        setProgress(progress);
-
-        if (progress >= 1) {
-          if (!fullAt) fullAt = now;
-          if (now - fullAt >= HOLD_MS) {
-            finish();
-            return; // reveal() schedules the unmount
-          }
-        }
-        frame = requestAnimationFrame(tick);
-      };
-      frame = requestAnimationFrame(tick);
     }
 
     return () => {
+      cancelled = true;
       cancelAnimationFrame(frame);
-      window.clearTimeout(holdTimer);
       window.clearTimeout(exitTimer);
-      window.removeEventListener("load", markLoaded);
-      window.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("pointerdown", onPointerDown, {
-        capture: true,
-      });
+      removeInteraction();
       document.body.classList.remove("overflow-hidden");
     };
     // Decided once, on mount: the overlay only ever lives on a full page
@@ -210,20 +260,19 @@ export default function LoadingScreen() {
 
   return (
     <div
-      className={`loading-overlay${phase === "exiting" ? " is-exiting" : ""}`}
+      className={`loading-overlay${variant ? ` is-${variant}` : ""}${
+        phase === "exiting" ? " is-exiting" : ""
+      }`}
       role="status"
       aria-busy={phase === "loading"}
       aria-live="polite"
     >
-      <BrandLoaderBackdrop />
+      <BrandLoaderBackdrop variant={variant} />
 
       {/* Rendered only once the variant is known, so the first paint is the
           clean backdrop and neither variant ever flashes the other one. */}
       {variant && (
-        <BrandLoader
-          variant={variant}
-          fillRef={fillRef}
-        />
+        <BrandLoader variant={variant} label="Preparing your workspace…" />
       )}
 
       {/* The opening is short, but nobody is trapped in it. */}

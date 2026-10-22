@@ -114,7 +114,7 @@ export default function ExportMenu({ buildExportUrl, disabled }: ExportMenuProps
             data-export-menu
             role="menu"
             aria-label="Export report"
-            className="fixed z-[120] w-52 animate-fade-in overflow-hidden rounded-2xl border border-[#D5E0F5] bg-white p-1.5 shadow-[0_10px_30px_rgba(15,27,61,0.12)]"
+            className="fixed z-[120] w-52 animate-dropdown-in overflow-hidden rounded-2xl border border-[#D5E0F5] bg-white p-1.5 shadow-[0_10px_30px_rgba(15,27,61,0.12)]"
             style={{ top: position.top, left: position.left }}
           >
             <a

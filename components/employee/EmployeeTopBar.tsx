@@ -25,11 +25,12 @@ export default function EmployeeTopBar({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const pathname = usePathname();
 
-  // On the employee dashboard and schedule pages, StaffHeader embeds
+  // On the employee dashboard, outputs and schedule pages, StaffHeader embeds
   // the cluster directly (also covers the head's schedule page, which
   // reuses MyScheduleView)
   if (
     pathname === "/employee" ||
+    pathname === "/employee/outputs" ||
     pathname === "/employee/schedule" ||
     pathname === "/head/schedule"
   ) {

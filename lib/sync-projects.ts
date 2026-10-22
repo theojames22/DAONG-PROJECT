@@ -9,7 +9,7 @@ export async function syncOutputsToProjects(supabase: SupabaseClient) {
     const [{ data: outputs }, { data: existingProjects }] = await Promise.all([
       supabase
         .from("outputs")
-        .select("id, employee_id, date, title, attachment_url, status, reviewer_notes, reviewed_by, created_at"),
+        .select("id, employee_id, date, title, attachment_type, attachment_url, submission_notes, status, reviewer_notes, reviewed_by, created_at"),
       supabase
         .from("projects")
         .select("id, source_output_id"),
@@ -34,16 +34,24 @@ export async function syncOutputsToProjects(supabase: SupabaseClient) {
           ? "checking"
           : "pending";
 
-      await supabase.from("projects").insert({
+      const { error } = await supabase.from("projects").insert({
         title: o.title?.trim() || `Output ${o.date}`,
-        description: o.reviewer_notes,
-        file_url: o.attachment_url,
+        description: o.submission_notes ?? o.reviewer_notes,
+        file_url: o.attachment_url ?? null,
         status: projectStatus,
         submitted_by: o.employee_id,
         reviewed_by: o.reviewed_by,
         source_output_id: o.id,
         created_at: o.created_at || new Date().toISOString(),
       });
+
+      // Never silent: the trigger is the primary path, this is the fallback.
+      if (error) {
+        console.error(
+          `Failed to mirror output ${o.id} into the review queue:`,
+          error.message
+        );
+      }
     }
   } catch (err) {
     console.error("Failed to sync outputs to projects:", err);

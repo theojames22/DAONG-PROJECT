@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Link as LinkIcon,
   FileText,
@@ -11,39 +11,112 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  PenLine,
+  RefreshCw,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { toDateKey } from "@/lib/attendance";
+import {
+  ACCEPTED_FILE_EXTENSIONS,
+  ACCEPTED_IMAGE_EXTENSIONS,
+  MAX_FILE_SIZE,
+  NOTES_MAX,
+  TITLE_MAX,
+  formatFileSize,
+  newSubmissionId,
+  validateAttachment,
+  validateSubmission,
+  type SubmissionType,
+} from "@/lib/outputs";
+import WrittenOutputEditor from "./WrittenOutputEditor";
 
 interface SubmitDeliverableCardProps {
-  employeeId: string;
   /** Employee has clocked in today — required before an output may be submitted. */
   clockedIn: boolean;
   onSubmitted?: () => void;
+  /**
+   * Drops the card chrome (border, radius, shadow, entrance animation) so the
+   * exact same form can live inside a modal. Defaults to false — the
+   * dashboard card is unchanged.
+   */
+  embedded?: boolean;
 }
 
-type TabKey = "link" | "file" | "image";
+type TabKey = SubmissionType;
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-
-const tabs: { key: TabKey; label: string; icon: typeof LinkIcon }[] = [
-  { key: "link", label: "Link", icon: LinkIcon },
-  { key: "file", label: "Document / file", icon: FileText },
-  { key: "image", label: "Screenshot", icon: ImageIcon },
+const tabs: { key: TabKey; label: string; icon: typeof LinkIcon; hint: string }[] = [
+  { key: "written", label: "Written", icon: PenLine, hint: "Type the work directly — no upload needed" },
+  { key: "file", label: "File", icon: FileText, hint: "Upload a document" },
+  { key: "image", label: "Image", icon: ImageIcon, hint: "Upload a screenshot or image" },
+  { key: "link", label: "Link", icon: LinkIcon, hint: "Point to externally hosted work" },
 ];
 
+interface StatusMessage {
+  tone: "success" | "error";
+  text: string;
+  /** Upload failures get Retry / Continue with Written Output actions. */
+  recoverUpload?: boolean;
+}
+
+interface XhrResult {
+  status: number;
+  body: {
+    id?: string;
+    duplicate?: boolean;
+    error?: {
+      code?: string;
+      message?: string;
+      canSwitchToWritten?: boolean;
+      retryable?: boolean;
+    };
+  } | null;
+}
+
+/** XHR (not fetch) because it is the only way to report upload progress. */
+function postSubmission(form: FormData, onProgress: (percent: number) => void) {
+  return new Promise<XhrResult>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/outputs");
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      }
+    };
+
+    xhr.onload = () => {
+      let body: XhrResult["body"] = null;
+      try {
+        body = JSON.parse(xhr.responseText) as XhrResult["body"];
+      } catch {
+        body = null;
+      }
+      resolve({ status: xhr.status, body });
+    };
+
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.ontimeout = () => reject(new Error("Timeout"));
+    xhr.send(form);
+  });
+}
+
 export default function SubmitDeliverableCard({
-  employeeId,
   clockedIn,
   onSubmitted,
+  embedded = false,
 }: SubmitDeliverableCardProps) {
   const router = useRouter();
-  const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState<TabKey>("link");
+  const [activeTab, setActiveTab] = useState<TabKey>("written");
+  /**
+   * One reference per form session. It is the row's id AND the idempotency
+   * key: a double click or a retried request reuses it, so the server can
+   * recognise the submission instead of creating a duplicate.
+   */
+  const [submissionId, setSubmissionId] = useState<string>(() => newSubmissionId());
+
   const [title, setTitle] = useState("");
+  const [writtenContent, setWrittenContent] = useState("");
   const [resourceLink, setResourceLink] = useState("");
   const [notes, setNotes] = useState("");
   const [verified, setVerified] = useState(true);
@@ -51,17 +124,45 @@ export default function SubmitDeliverableCard({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
 
-  function switchTab(tab: TabKey) {
-    setActiveTab(tab);
+  // Object URLs must be released or they leak one blob per chosen image.
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  function clearFile() {
     setFile(null);
-    setPreviewUrl(null);
-    setStatusMessage(null);
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  /**
+   * Switching type keeps everything the user typed (title, notes, written
+   * body, link) and drops only the attachment — the one value that would
+   * otherwise be silently carried into a different submission type.
+   */
+  function switchTab(tab: TabKey) {
+    if (tab === activeTab) return;
+    setActiveTab(tab);
+    setStatusMessage(null);
+    clearFile();
+  }
+
+  function continueWithWritten() {
+    setActiveTab("written");
+    clearFile();
+    setStatusMessage({
+      tone: "error",
+      text:
+        "Switched to Written Output. Your title and notes are still here — write or paste the work, then submit. Nothing is uploaded.",
+    });
   }
 
   async function handlePaste() {
@@ -73,29 +174,30 @@ export default function SubmitDeliverableCard({
       }
     } catch {
       setStatusMessage({
-        type: "error",
+        tone: "error",
         text: "Clipboard access was blocked. Paste manually with Ctrl+V.",
       });
     }
   }
 
-  function validateFile(candidate: File): string | null {
-    if (activeTab === "image" && !candidate.type.startsWith("image/")) {
-      return "Screenshots must be image files (PNG, JPG, WEBP, GIF).";
-    }
-    if (candidate.size > MAX_FILE_SIZE) {
-      return "That file exceeds the 50MB limit.";
-    }
-    return null;
-  }
-
   function acceptFile(candidate: File | null) {
     if (!candidate) return;
-    const error = validateFile(candidate);
+
+    const error =
+      activeTab === "file" || activeTab === "image"
+        ? validateAttachment(activeTab, {
+            name: candidate.name,
+            size: candidate.size,
+            type: candidate.type,
+          })
+        : "Choose the File or Image tab first.";
+
     if (error) {
-      setStatusMessage({ type: "error", text: error });
+      clearFile();
+      setStatusMessage({ tone: "error", text: error });
       return;
     }
+
     setStatusMessage(null);
     setFile(candidate);
     setPreviewUrl(
@@ -106,25 +208,50 @@ export default function SubmitDeliverableCard({
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setIsDragging(false);
+    if (!clockedIn) return;
     acceptFile(e.dataTransfer.files?.[0] ?? null);
+  }
+
+  function resetForm() {
+    setTitle("");
+    setWrittenContent("");
+    setResourceLink("");
+    setNotes("");
+    setFile(null);
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setSubmissionId(newSubmissionId());
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    await submitCurrent();
+  }
+
+  /** Retry reuses the exact same form state and submission reference. */
+  function handleRetryUpload() {
+    void submitCurrent();
+  }
+
+  async function submitCurrent() {
+    if (isSubmitting) return;
     setStatusMessage(null);
 
-    // Gate: Locked check
     if (!clockedIn) {
       setStatusMessage({
-        type: "error",
+        tone: "error",
         text: "You haven't clocked in today. You can submit work once today's attendance is recorded.",
       });
       return;
     }
 
-    // Required fields check: List exactly what is missing
+    // Friendly, complete "what's missing" list before the detailed rules.
     const missing: string[] = [];
     if (!title.trim()) missing.push("a deliverable name");
+    if (activeTab === "written" && !writtenContent.trim()) missing.push("the written output");
     if (activeTab === "link" && !resourceLink.trim()) missing.push("a link");
     if (activeTab === "file" && !file) missing.push("a document or file");
     if (activeTab === "image" && !file) missing.push("a screenshot");
@@ -132,141 +259,133 @@ export default function SubmitDeliverableCard({
 
     if (missing.length > 0) {
       setStatusMessage({
-        type: "error",
+        tone: "error",
         text: `Still needed: ${missing.join(", ")}.`,
       });
       return;
     }
 
-    let attachmentUrl = "";
-    let storagePath: string | null = null;
-    let fileName: string | null = null;
+    const ruleError = validateSubmission({
+      type: activeTab,
+      title,
+      content: writtenContent,
+      link: resourceLink,
+      notes,
+      file: file ? { name: file.name, size: file.size, type: file.type } : null,
+    });
 
-    if (activeTab === "link") {
-      attachmentUrl = resourceLink.trim();
-    } else {
-      if (!file) return;
-
-      setIsSubmitting(true);
-      try {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        storagePath = `${employeeId}/deliverables/${Date.now()}-${safeName}`;
-        fileName = file.name;
-
-        const { error: uploadError } = await supabase.storage
-          .from("project-files")
-          .upload(storagePath, file, {
-            contentType: file.type,
-            upsert: false,
-          });
-        if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage
-          .from("project-files")
-          .getPublicUrl(storagePath);
-        attachmentUrl = urlData.publicUrl;
-      } catch (err) {
-        setIsSubmitting(false);
-        setStatusMessage({
-          type: "error",
-          text:
-            err instanceof Error
-              ? `Upload failed: ${err.message}`
-              : "Upload failed. Please try again.",
-        });
-        return;
-      }
-    }
-
-    setIsSubmitting(true);
-    const todayStr = toDateKey(new Date().toISOString());
-
-    const { data: insertedOutput, error } = await supabase
-      .from("outputs")
-      .insert({
-        employee_id: employeeId,
-        date: todayStr,
-        title: title.trim(),
-        attachment_type: activeTab,
-        attachment_url: attachmentUrl,
-        storage_path: storagePath,
-        file_name: fileName,
-        status: "pending",
-        reviewer_notes: notes.trim() || null,
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (insertedOutput?.id) {
-      try {
-        const { data: existing } = await supabase
-          .from("projects")
-          .select("id")
-          .eq("source_output_id", insertedOutput.id)
-          .maybeSingle();
-
-        if (!existing) {
-          await supabase.from("projects").insert({
-            title: title.trim() || `Output ${todayStr}`,
-            description: notes.trim() || null,
-            file_url: attachmentUrl,
-            status: "pending",
-            submitted_by: employeeId,
-            source_output_id: insertedOutput.id,
-          });
-        }
-      } catch {
-        // Mirrored by backend trigger if configured
-      }
-    }
-
-    setIsSubmitting(false);
-
-    if (error) {
-      setStatusMessage({
-        type: "error",
-        text: "Could not submit deliverable: " + error.message,
-      });
+    if (ruleError) {
+      setStatusMessage({ tone: "error", text: ruleError });
       return;
     }
 
-    setStatusMessage({
-      type: "success",
-      text: "Deliverable submitted successfully! It is now in review under My submissions.",
-    });
+    const form = new FormData();
+    form.set("id", submissionId);
+    form.set("type", activeTab);
+    form.set("title", title);
+    form.set("notes", notes);
 
-    // Reset fields
-    setTitle("");
-    setResourceLink("");
-    setNotes("");
-    setFile(null);
-    setPreviewUrl(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    // Only the field that belongs to the selected type is sent, so a link or
+    // a file left over from another tab can never ride along.
+    if (activeTab === "written") form.set("content", writtenContent);
+    if (activeTab === "link") form.set("link", resourceLink);
+    if ((activeTab === "file" || activeTab === "image") && file) {
+      form.set("file", file, file.name);
+    }
 
-    if (onSubmitted) onSubmitted();
-    router.refresh();
+    setIsSubmitting(true);
+    setProgress(activeTab === "file" || activeTab === "image" ? 0 : null);
+
+    try {
+      const { status, body } = await postSubmission(form, (percent) => {
+        setProgress(percent);
+      });
+
+      if (status === 200 || status === 201) {
+        setStatusMessage({
+          tone: "success",
+          text: body?.duplicate
+            ? "This submission was already saved — it's pending review."
+            : "Deliverable submitted successfully! It's now pending review.",
+        });
+        resetForm();
+        if (onSubmitted) onSubmitted();
+        router.refresh();
+        return;
+      }
+
+      let message = body?.error?.message ?? "";
+
+      // A reverse proxy or hosting platform can reject the body before the
+      // route runs and answer with plain HTML instead of our JSON. Translate
+      // the common statuses so the staff member still gets an actionable
+      // message instead of a generic failure.
+      if (!message) {
+        if (status === 413) {
+          message =
+            "That attachment is larger than the server accepts in a single request, so it wasn't saved. Your title and notes are still here.";
+        } else if (status === 507) {
+          message =
+            "File storage is full, so the attachment couldn't be saved. Your title and notes are still here.";
+        } else if (status === 415) {
+          message =
+            "That file type isn't accepted, so the attachment wasn't saved. Your title and notes are still here.";
+        } else {
+          message =
+            "The submission could not be saved. Nothing was stored — please try again.";
+        }
+      }
+
+      setStatusMessage({
+        tone: "error",
+        text: message,
+        // Anything that fails while a file/image is the chosen method offers
+        // the two honest ways forward: try again, or switch to writing.
+        recoverUpload: activeTab === "file" || activeTab === "image",
+      });
+    } catch {
+      setStatusMessage({
+        tone: "error",
+        text: "The submission couldn't reach the server. Nothing was saved — check your connection and try again.",
+        recoverUpload: activeTab === "file" || activeTab === "image",
+      });
+    } finally {
+      setIsSubmitting(false);
+      setProgress(null);
+    }
   }
 
   const acceptAttr =
-    activeTab === "image" ? "image/*" : ".pdf,.doc,.docx,.zip,.png,.jpg,.jpeg,.webp";
+    activeTab === "image" ? ACCEPTED_IMAGE_EXTENSIONS : ACCEPTED_FILE_EXTENSIONS;
+  const activeTabHint = tabs.find((t) => t.key === activeTab)?.hint ?? "";
+  const isUpload = activeTab === "file" || activeTab === "image";
+  const showProgress = isSubmitting && isUpload && progress !== null;
 
   return (
-    <div className="flex h-full flex-col justify-between rounded-[20px] border border-staff-border bg-white p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,27,61,.04),0_10px_30px_rgba(37,99,235,.06)] enter-up enter-d3">
+    <div
+      className={
+        embedded
+          ? "flex flex-col"
+          : "flex h-full flex-col justify-between rounded-[20px] border border-staff-border bg-white p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,27,61,.04),0_10px_30px_rgba(37,99,235,.06)] enter-up enter-d3"
+      }
+    >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {/* Card Title & Description */}
-        <div>
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-staff-ink">
-              Submit your work
-            </h2>
-            <span className="text-xs font-semibold text-staff-body">
-              Review workflow
-            </span>
+        {/* Card Title & Description — the modal supplies its own header. */}
+        {!embedded && (
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-bold text-staff-ink">
+                Submit your work
+              </h2>
+              <span className="text-xs font-semibold text-staff-body">
+                Review workflow
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-staff-body">
+              Write the work directly, upload a deliverable, or send a link for your supervisor to audit.
+            </p>
           </div>
-          <p className="mt-1 text-xs text-staff-body">
-            Upload your deliverables or resource links for your supervisor to audit.
-          </p>
-        </div>
+        )}
 
         {/* State Banner: Locked (Amber) vs Unlocked (Green) */}
         {!clockedIn ? (
@@ -286,55 +405,93 @@ export default function SubmitDeliverableCard({
         {/* Status Message / Inline Error Banner */}
         {statusMessage && (
           <div
+            role={statusMessage.tone === "error" ? "alert" : "status"}
             className={`flex items-start gap-2.5 rounded-xl p-3 text-xs font-medium border ${
-              statusMessage.type === "success"
+              statusMessage.tone === "success"
                 ? "bg-staff-success-soft text-staff-success border-staff-success-border"
                 : "bg-staff-danger-soft text-staff-danger border-staff-danger-border"
             }`}
           >
-            {statusMessage.type === "success" ? (
+            {statusMessage.tone === "success" ? (
               <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-staff-success" />
             ) : (
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-staff-danger" />
             )}
-            <p className="flex-1 leading-relaxed">{statusMessage.text}</p>
+            <div className="flex-1">
+              <p className="leading-relaxed">{statusMessage.text}</p>
+              {statusMessage.recoverUpload && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRetryUpload}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-staff-danger-border bg-white px-2.5 py-1.5 text-[11px] font-bold text-staff-danger transition-colors hover:bg-staff-danger-soft disabled:opacity-60"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Retry upload
+                  </button>
+                  <button
+                    type="button"
+                    onClick={continueWithWritten}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-staff-blue px-2.5 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-staff-blue-dark"
+                  >
+                    <PenLine className="h-3 w-3" />
+                    Continue with Written Output
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Segmented Control for 3 Input Types */}
-        <div className="flex rounded-xl bg-slate-100 p-1 border border-staff-border" role="tablist">
-          {tabs.map(({ key, label, icon: Icon }) => (
+        {/* Segmented control for the four submission types */}
+        <div
+          className="grid grid-cols-2 gap-1 rounded-xl border border-staff-border bg-slate-100 p-1 sm:grid-cols-4"
+          role="tablist"
+          aria-label="Submission type"
+        >
+          {tabs.map(({ key, label, icon: Icon, hint }) => (
             <button
               key={key}
               type="button"
               role="tab"
               aria-selected={activeTab === key}
+              title={hint}
               onClick={() => switchTab(key)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-all ${
                 activeTab === key
                   ? "bg-white text-staff-blue-ink shadow-sm"
                   : "text-staff-body hover:text-staff-ink"
               }`}
             >
-              <Icon className="h-3.5 w-3.5" />
+              <Icon className="h-3.5 w-3.5 shrink-0" />
               <span>{label}</span>
             </button>
           ))}
         </div>
 
+        <p className="-mt-1 text-[10.5px] font-medium text-staff-body">
+          {activeTabHint}
+          {activeTab === "written"
+            ? " · nothing is uploaded or stored as a file."
+            : ""}
+        </p>
+
         {/* Disabled overlay wrapper when locked */}
         <div className={`flex flex-col gap-3.5 transition-opacity ${!clockedIn ? "opacity-80 pointer-events-none" : ""}`}>
           {/* Field 1: Deliverable Name */}
           <div>
-            <label className="block text-xs font-bold text-staff-ink mb-1.5">
+            <label htmlFor="deliverable-title" className="block text-xs font-bold text-staff-ink mb-1.5">
               Deliverable name
             </label>
             <div className="relative">
               <input
+                id="deliverable-title"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 disabled={!clockedIn}
+                maxLength={TITLE_MAX}
                 placeholder="e.g. Sprint 14 UI Components & Feature Staging"
                 className="w-full rounded-xl border border-staff-border bg-white px-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
               />
@@ -345,10 +502,18 @@ export default function SubmitDeliverableCard({
           </div>
 
           {/* Field 2: Tab-specific input */}
+          {activeTab === "written" && (
+            <WrittenOutputEditor
+              value={writtenContent}
+              onChange={setWrittenContent}
+              disabled={!clockedIn}
+            />
+          )}
+
           {activeTab === "link" && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-staff-ink">
+                <label htmlFor="submission-link" className="block text-xs font-bold text-staff-ink">
                   Resource link
                 </label>
                 <button
@@ -366,6 +531,7 @@ export default function SubmitDeliverableCard({
                   <LinkIcon className="h-3.5 w-3.5" />
                 </span>
                 <input
+                  id="submission-link"
                   type="url"
                   value={resourceLink}
                   onChange={(e) => setResourceLink(e.target.value)}
@@ -392,7 +558,7 @@ export default function SubmitDeliverableCard({
                   if (clockedIn) setIsDragging(true);
                 }}
                 onDragLeave={() => setIsDragging(false)}
-                onDrop={clockedIn ? handleDrop : undefined}
+                onDrop={handleDrop}
                 onClick={() => clockedIn && fileInputRef.current?.click()}
                 className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all ${
                   isDragging
@@ -406,15 +572,17 @@ export default function SubmitDeliverableCard({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={previewUrl}
-                        alt="Preview"
+                        alt="Preview of the selected screenshot"
                         className="max-h-28 rounded-lg border border-staff-border object-contain"
                       />
                     ) : (
                       <FileText className="h-8 w-8 text-staff-blue-ink" />
                     )}
-                    <p className="text-xs font-bold text-staff-ink">{file.name}</p>
+                    <p className="max-w-full truncate text-xs font-bold text-staff-ink">
+                      {file.name}
+                    </p>
                     <p className="text-[10px] text-staff-body">
-                      {(file.size / (1024 * 1024)).toFixed(2)} MB · Click or drag to replace
+                      {formatFileSize(file.size)} · Click or drag to replace
                     </p>
                   </div>
                 ) : (
@@ -426,7 +594,8 @@ export default function SubmitDeliverableCard({
                       Click to choose or drop {activeTab === "image" ? "screenshot" : "file"}
                     </p>
                     <p className="text-[10.5px] text-staff-body">
-                      {activeTab === "image" ? "PNG, JPG, WEBP" : "PDF, DOCX, ZIP, IMAGES"} up to 50MB
+                      {activeTab === "image" ? "PNG, JPG, WEBP, GIF" : "PDF, DOCX, XLSX, PPTX, ZIP, TXT, IMAGES"} up to{" "}
+                      {formatFileSize(MAX_FILE_SIZE)}
                     </p>
                   </div>
                 )}
@@ -439,20 +608,32 @@ export default function SubmitDeliverableCard({
                   className="hidden"
                 />
               </div>
+
+              <p className="mt-1.5 text-[10.5px] text-staff-body">
+                If the upload fails, your title and notes stay here and you can
+                switch to Written Output.
+              </p>
             </div>
           )}
 
-          {/* Field 3: Notes for supervisor */}
+          {/* Field 3: Notes / summary for the supervisor */}
           <div>
-            <label className="block text-xs font-bold text-staff-ink mb-1.5">
-              Notes for your supervisor <span className="font-normal text-staff-body">(optional)</span>
+            <label htmlFor="submission-notes" className="block text-xs font-bold text-staff-ink mb-1.5">
+              {activeTab === "written" ? "Summary" : "Notes for your supervisor"}{" "}
+              <span className="font-normal text-staff-body">(optional)</span>
             </label>
             <textarea
+              id="submission-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               disabled={!clockedIn}
               rows={2}
-              placeholder="Provide context, deliverables notes, or review guidance..."
+              maxLength={NOTES_MAX}
+              placeholder={
+                activeTab === "written"
+                  ? "A short description of the task, what was completed, or what to check…"
+                  : "Provide context, deliverables notes, or review guidance..."
+              }
               className="w-full rounded-xl border border-staff-border bg-white px-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all resize-none"
             />
           </div>
@@ -471,6 +652,29 @@ export default function SubmitDeliverableCard({
             </span>
           </label>
         </div>
+
+        {/* Upload progress */}
+        {showProgress && (
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[10.5px] font-semibold text-staff-body">
+              <span>Uploading attachment…</span>
+              <span className="tabular-nums">{progress}%</span>
+            </div>
+            <div
+              className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200"
+              role="progressbar"
+              aria-valuenow={progress ?? 0}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Upload progress"
+            >
+              <div
+                className="h-full rounded-full bg-staff-blue transition-[width] duration-200"
+                style={{ width: `${progress ?? 0}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Action Button: Disabled when locked, Blue when unlocked */}
         <div className="pt-2">
@@ -492,7 +696,11 @@ export default function SubmitDeliverableCard({
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Submitting deliverable...</span>
+                  <span>
+                    {isUpload && progress !== null && progress < 100
+                      ? `Uploading… ${progress}%`
+                      : "Saving submission…"}
+                  </span>
                 </>
               ) : (
                 <span>Submit for review</span>
@@ -501,9 +709,8 @@ export default function SubmitDeliverableCard({
           )}
         </div>
 
-        {/* Footer line with SHA-256 integrity note */}
         <p className="text-[10.5px] text-center text-staff-body pt-1">
-          Submissions are timestamped when sent · SHA-256 verification enabled.
+          Submissions are timestamped when sent.
         </p>
       </form>
     </div>

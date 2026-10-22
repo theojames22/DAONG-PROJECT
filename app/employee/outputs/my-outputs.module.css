@@ -1,0 +1,268 @@
+/* =========================================================================
+   My Outputs (Staff) — page-scoped motion & polish.
+   -------------------------------------------------------------------------
+   Every rule lives under .page or the portaled .drawer/.backdropOut classes,
+   so nothing leaks into any other screen. No global stylesheet changes.
+
+   Only transform / opacity / colour / background / box-shadow are animated.
+   The global reduced-motion block already zeroes all animation and
+   transition duration; the block at the bottom is a second, local guard.
+   ========================================================================= */
+
+.page {
+  position: relative;
+}
+
+/* ---------- 1. Entrance (first meaningful appearance only) --------------
+   Mounting drives this — a router.refresh() from Realtime re-renders without
+   remounting, so the cascade never replays while data updates. */
+
+@keyframes moRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.enter {
+  animation: moRise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--mo-delay, 0ms);
+}
+
+/* Hold the cascade until the branded loader hands over. */
+:global(html:not([data-app-ready="true"])) .enter {
+  animation: none;
+}
+
+/* Count changes fade in place — no width/height animation, no layout shift. */
+@keyframes moCountIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.countPop {
+  display: inline-block;
+  animation: moCountIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ---------- 2. Cards ---------------------------------------------------- */
+
+/* Summary cards: a restrained 2px lift, 220ms. */
+.statCard {
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.statCard:hover {
+  transform: translateY(-2px);
+  border-color: #d5e0f5;
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.05),
+    0 14px 32px -16px rgba(37, 99, 235, 0.32);
+}
+
+/* Output cards: a 3px lift and a faint blue border tint on hover/focus. */
+.card {
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.card:hover {
+  transform: translateY(-3px);
+  border-color: #c9dbfb;
+  box-shadow:
+    0 3px 6px rgba(15, 23, 42, 0.05),
+    0 20px 38px -18px rgba(37, 99, 235, 0.3);
+}
+/* Keyboard focus lands on the stretched overlay button, so the ring follows
+   the whole card. :focus-within is the fallback for older engines. */
+.card:focus-within {
+  border-color: #bcd4fa;
+  box-shadow: 0 0 0 3px #e1ebff, 0 16px 32px -18px rgba(37, 99, 235, 0.3);
+}
+
+.overlay {
+  cursor: pointer;
+}
+
+/* List rows tint instead of lifting, so the table stays calm. */
+.listRow {
+  transition: background-color 180ms ease;
+}
+.listRow:hover {
+  background-color: #f7faff;
+}
+
+/* ---------- 3. Buttons -------------------------------------------------- */
+
+.btnPrimary {
+  box-shadow: 0 6px 16px -8px rgba(37, 99, 235, 0.5);
+  transition:
+    transform 200ms ease,
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+.btnPrimary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background-color: #1f55d6;
+  box-shadow: 0 14px 26px -10px rgba(37, 99, 235, 0.6);
+}
+.btnPrimary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btnGhost {
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+.btnGhost:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background-color: #eef3ff;
+  border-color: #b7cbf3;
+}
+
+.page button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* ---------- 4. Inputs --------------------------------------------------- */
+
+.field {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+.field:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px #e1ebff;
+}
+
+/* ---------- 5. Segmented Card / List switch ----------------------------- */
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9999px;
+  background-color: #eaf1ff;
+  border: 1px solid #dbe8ff;
+}
+
+.segBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 40px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: #9aa8bd;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.segBtn:hover:not(.segBtnActive) {
+  color: #475569;
+}
+.segBtnActive {
+  background-color: #ffffff;
+  border-color: #2563eb;
+  color: #2563eb;
+  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.28);
+}
+
+/* ---------- 6. Details drawer (portaled to <body>) ---------------------- */
+
+.drawer {
+  /* Composited only while it is actually moving. */
+  isolation: isolate;
+}
+
+@keyframes moDrawerOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
+
+.drawerOut {
+  animation: moDrawerOut 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* Matches the other drawers' easing, at this page's specified 20px / 320ms. */
+@keyframes moDrawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.drawerIn {
+  animation: moDrawerIn 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes moBackdropOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.backdropOut {
+  animation: moBackdropOut 180ms ease both;
+}
+
+/* ---------- 7. Visible keyboard focus ---------------------------------- */
+
+.page :is(button, a, input, select, textarea):focus-visible,
+.drawer :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid #8fb0ff;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ---------- 8. Reduced motion: no animation, identical layout ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after,
+  .drawer,
+  .drawer *,
+  .drawer *::before,
+  .drawer *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

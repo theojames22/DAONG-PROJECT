@@ -38,6 +38,12 @@
   animation-delay: var(--wf-delay, 0s);
 }
 
+/* Hold the cascade until the branded overlay hands over; otherwise the
+   whole page animates behind the loader and is already settled on reveal. */
+:global(html:not([data-app-ready="true"])) .enter {
+  animation: none;
+}
+
 /* ---------- 2. Background waves ---------- */
 
 .waves {

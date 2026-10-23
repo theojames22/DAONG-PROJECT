@@ -115,6 +115,17 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* The sign-in screen is a single, centred, full-height page with a
+   full-bleed fixed background, so reserving a gutter there buys nothing:
+   it just leaves a dead 15px strip on the right that the page canvas
+   paints with --base (white), right next to the photo. Release the
+   reservation on that route only. Supported in Chrome 105+, Safari 15.4+
+   and Firefox 121+; older browsers ignore the rule and simply keep the
+   previous behaviour. */
+html:has(.login-scope) {
+  scrollbar-gutter: auto;
+}
+
 body {
   background-color: var(--base);
   color: var(--ink);
@@ -567,6 +578,27 @@ body {
 }
 .animate-wave-drift {
   animation: waveDrift 28s linear infinite;
+}
+
+/* Route-level skeletons (loading.tsx). The 120 ms delay keeps the placeholder
+   from flashing when a navigation resolves out of the router cache, while a
+   genuinely slow fetch still shows feedback almost immediately. */
+@keyframes skeletonIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes skeletonShimmer {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.skeleton-delayed {
+  animation: skeletonIn 160ms ease-out 120ms both;
+}
+
+.skeleton-shimmer {
+  animation: skeletonShimmer 1.5s ease-in-out 280ms infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1374,7 +1406,7 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image: url("/images/new background.png");
+  background-image: url("/images/newest bg.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

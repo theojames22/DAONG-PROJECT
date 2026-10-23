@@ -1,8 +1,20 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+
+/**
+ * A single clock-in can emit several realtime row events (insert on
+ * `sessions`, then the triggers that touch `attendance_days`, plus one per
+ * output linked to the day). Refreshing the server components once per event
+ * made the dashboard re-render — and re-query Supabase — in bursts.
+ *
+ * 350 ms of trailing silence collapses a burst into one refresh without
+ * delaying the visible update perceptibly: the event itself lands instantly,
+ * the data is re-fetched once.
+ */
+const REFRESH_DEBOUNCE_MS = 350;
 
 /**
  * Keeps the Head dashboard in sync with the database.
@@ -20,6 +32,17 @@ import { createClient } from "@/lib/supabase/client";
 export default function DashboardLiveSync() {
   const router = useRouter();
   const supabase = createClient();
+  const timerRef = useRef<number | undefined>(undefined);
+
+  const scheduleRefresh = useCallback(() => {
+    if (timerRef.current !== undefined) {
+      window.clearTimeout(timerRef.current);
+    }
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = undefined;
+      router.refresh();
+    }, REFRESH_DEBOUNCE_MS);
+  }, [router]);
 
   useEffect(() => {
     const channel = supabase
@@ -27,19 +50,25 @@ export default function DashboardLiveSync() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "sessions" },
-        () => router.refresh()
+        scheduleRefresh
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "outputs" },
-        () => router.refresh()
+        scheduleRefresh
       )
       .subscribe();
 
     return () => {
+      // Never leave a queued refresh behind after the dashboard unmounts —
+      // a late refresh would re-render a route the user has already left.
+      if (timerRef.current !== undefined) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = undefined;
+      }
       supabase.removeChannel(channel);
     };
-  }, [supabase, router]);
+  }, [supabase, scheduleRefresh]);
 
   return null;
 }

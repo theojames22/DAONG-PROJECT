@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedProfile } from "@/lib/auth-utils";
 import { ThemeProvider, type Theme } from "@/components/theme/ThemeProvider";
 import LoadingScreen from "@/components/LoadingScreen";
 import "./globals.css";
@@ -34,21 +34,13 @@ export default async function RootLayout({
 }) {
   // Resolve the signed-in user's saved theme so the correct palette is on
   // <html> from the very first paint (no flash of the wrong theme).
+  // getAuthenticatedProfile is request-cached, so this shares the section
+  // layout's verification and profile row instead of querying them again.
   let initialTheme: Theme = "light";
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase
-        .from("profiles")
-        .select("theme_preference")
-        .eq("id", user.id)
-        .single();
-      if (data?.theme_preference === "dark") {
-        initialTheme = "dark";
-      }
+    const { profile } = await getAuthenticatedProfile();
+    if (profile.theme_preference === "dark") {
+      initialTheme = "dark";
     }
   } catch {
     // Anonymous / no profile yet — keep the light default.

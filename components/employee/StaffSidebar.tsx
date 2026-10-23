@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { Clock, Calendar, FileText, LogOut, Menu, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -93,13 +94,11 @@ export default function StaffSidebar({
           {links.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return (
-              <button
+              <Link
                 key={href}
-                type="button"
-                onClick={() => {
-                  setIsOpen(false);
-                  if (!active) router.push(href);
-                }}
+                href={href}
+                onClick={() => setIsOpen(false)}
+                aria-current={active ? "page" : undefined}
                 className={`neu-focus relative flex items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium transition-all duration-150 text-left ${
                   active
                     ? "elev-pressed text-staff-blue-ink"
@@ -111,7 +110,7 @@ export default function StaffSidebar({
                   strokeWidth={2}
                 />
                 {label}
-              </button>
+              </Link>
             );
           })}
         </nav>

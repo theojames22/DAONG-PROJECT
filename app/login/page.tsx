@@ -162,18 +162,19 @@ export default function LoginPage() {
         }
         .login-scope .text-ink-muted { color: #71798A; }
         .login-scope .text-ink { color: #2B3542; }
-        /* The busy background painting can swallow small caption text. */
+        /* Card footer: now inside the card, on the flat neumorphic surface.
+           The frosted pill was only there to survive the busy photo, so a
+           hairline divider plus a darker caption keeps it calm and legible
+           (~5.8:1 on #e6ebf2). */
         .login-scope .login-footnote {
-          width: fit-content;
-          margin-left: auto;
-          margin-right: auto;
-          padding: 6px 14px;
-          border-radius: 999px;
-          color: #59647a;
-          background-color: rgba(255, 255, 255, 0.72);
-          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-          -webkit-backdrop-filter: blur(4px);
-          backdrop-filter: blur(4px);
+          margin-top: 20px;
+          padding-top: 16px;
+          border-top: 1px solid rgba(140, 154, 175, 0.35);
+          color: #4f5a6b;
+          font-size: 13px;
+          line-height: 1.5;
+          text-align: center;
+          text-wrap: balance;
         }
         .login-scope .login-field {
           transition: box-shadow 180ms ease, background-color 180ms ease;
@@ -304,13 +305,6 @@ export default function LoginPage() {
               </button>
             </form>
           </div>
-
-          <p
-            className="login-item login-footnote mt-6 text-center text-[13px] text-ink-muted"
-            style={step(380)}
-          >
-            Need access? Contact your administrator.
-          </p>
         </div>
       </main>
 

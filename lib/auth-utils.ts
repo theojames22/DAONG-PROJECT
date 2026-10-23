@@ -1,5 +1,6 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { USER_ROLES, UserRole } from "@/lib/constants";
+import { UserRole } from "@/lib/constants";
 import type { ThemePreference } from "@/lib/types";
 
 export class ProfileMissingError extends Error {
@@ -9,19 +10,47 @@ export class ProfileMissingError extends Error {
   }
 }
 
-export async function getAuthenticatedProfile() {
+export type AuthenticatedProfile = {
+  id: string;
+  full_name: string;
+  role: UserRole;
+  position?: string | null;
+  required_weekly_hours: number;
+  profile_picture_url?: string | null;
+  email?: string | null;
+  theme_preference?: ThemePreference;
+};
+
+/**
+ * Resolves the signed-in user and their profile row.
+ *
+ * `getClaims()` verifies the access token locally against the project's JWKS
+ * (the project signs with ES256) instead of calling `/auth/v1/user` on every
+ * request. It still refreshes an expiring session through `getSession()`, so
+ * the middleware's cookie-rotation behaviour is unchanged — but the round trip
+ * is gone from the critical path.
+ *
+ * The function is wrapped in React `cache()` so the root layout, the section
+ * layout and the page share one verification and one `profiles` query per
+ * render instead of repeating them three times.
+ *
+ * Authorization still comes from `profiles.role` (never from token metadata),
+ * so a role change takes effect on the next request exactly as before.
+ */
+export const getAuthenticatedProfile = cache(async () => {
   const supabase = await createClient();
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims;
 
-  if (authError || !user) {
+  if (error || !claims?.sub) {
     throw new Error("Not authenticated");
   }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", user.id)
+    .eq("id", claims.sub)
     .single();
 
   if (profileError || !profile) {
@@ -29,15 +58,10 @@ export async function getAuthenticatedProfile() {
   }
 
   return {
-    user,
-    profile: profile as {
-      full_name: string;
-      role: UserRole;
-      position?: string;
-      required_weekly_hours: number;
-      profile_picture_url?: string | null;
-      email?: string | null;
-      theme_preference?: ThemePreference;
+    user: {
+      id: claims.sub as string,
+      email: (claims.email as string | undefined) ?? null,
     },
+    profile: profile as AuthenticatedProfile,
   };
-}
+});

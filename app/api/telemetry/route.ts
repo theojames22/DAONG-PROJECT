@@ -187,11 +187,15 @@ export async function GET(request: Request) {
     };
   });
 
-  // 9. Build Monday - Friday telemetry array for the week
-  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  const weekTelemetry = dayNames.map((name, i) => {
-    const dateKey = weekDaysKeys[i];
-    const d = new Date(dateKey);
+  // 9. Build Monday - Sunday telemetry for the week.
+  //    The list is derived from getWeekRange() itself, so it always covers
+  //    the same seven days the queries above used — Monday first, Sunday
+  //    last — and can never drift out of sync with the week window.
+  const weekTelemetry = weekDaysKeys.map((dateKey) => {
+    // Local midnight, matching every other date key in the app. Parsing the
+    // bare "YYYY-MM-DD" would be UTC and shift the day in western timezones.
+    const d = new Date(`${dateKey}T00:00:00`);
+    const name = d.toLocaleDateString("en-US", { weekday: "long" });
     const dayCode = name.slice(0, 2).toUpperCase();
     const monthStr = d.toLocaleDateString("en-US", { month: "short" });
     const dayNum = d.getDate();

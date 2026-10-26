@@ -181,7 +181,7 @@ export default function StaffDashboard({
 
           {/* Right Column (Narrower: cols 8-12 on desktop, 9-12 on xl screens) */}
           <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-6 w-full">
-            {/* This week Card: Week/Day toggle, Week 42 cycle, Monday-Friday list */}
+            {/* This week Card: Week/Day toggle, weekly cycle label, Monday-Sunday list */}
             <WeekTelemetryCard
               weekTelemetry={weekTelemetry}
               daySessions={daySessions}

@@ -112,7 +112,7 @@ export default function WeekTelemetryCard({
         </div>
       </div>
 
-      {/* VIEW 1: Week List (Monday to Friday) */}
+      {/* VIEW 1: Week List (Monday to Sunday) */}
       {viewMode === "week" && (
         <div className="flex flex-col gap-2">
           {weekTelemetry.length === 0 ? (

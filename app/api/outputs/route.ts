@@ -232,8 +232,10 @@ export async function POST(request: Request) {
       });
     }
 
-    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
-    attachmentUrl = urlData.publicUrl;
+    // The bucket is private. Reads go through /api/outputs/[id]/file, which
+    // checks the output row and Storage RLS before streaming the object.
+    // Never persist a public URL: it would outlive authorization changes.
+    attachmentUrl = null;
   } else if (type === "link") {
     attachmentUrl = link;
   }

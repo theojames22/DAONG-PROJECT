@@ -26,10 +26,6 @@ export default async function ProjectsPage() {
 
   const supabase = await createClient();
 
-  // Guarantee all output submissions are mirrored in projects
-  const { syncOutputsToProjects } = await import("@/lib/sync-projects");
-  await syncOutputsToProjects(supabase);
-
   const { data: projects } = await supabase
     .from("projects")
     .select(

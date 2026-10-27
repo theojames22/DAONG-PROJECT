@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { toDateKey, monthWindow } from "@/lib/attendance";
-import { Availability, Profile } from "@/lib/types";
+import { monthWindow } from "@/lib/attendance";
+import { addDaysToKey, dateKeyIn, dayOfWeek, isValidDateKey } from "@/lib/time";
+import { getAppTimezone } from "@/lib/report/queries";
+import { Availability } from "@/lib/types";
 
 /**
  * Availability / schedule API — the single source of truth is the
@@ -51,15 +53,14 @@ function expandRecurrence(
   weekdays: number[]
 ): string[] {
   const dates: string[] = [];
-  const cursor = new Date(`${fromDate}T00:00:00`);
-  const end = new Date(`${untilDate}T00:00:00`);
+  let cursor = fromDate;
   // Guard against runaway loops.
   const hardLimit = 400;
-  while (cursor <= end && dates.length < hardLimit) {
-    if (weekdays.includes(cursor.getDay())) {
-      dates.push(toDateKey(cursor.toISOString()));
+  while (cursor <= untilDate && dates.length < hardLimit) {
+    if (weekdays.includes(dayOfWeek(cursor))) {
+      dates.push(cursor);
     }
-    cursor.setDate(cursor.getDate() + 1);
+    cursor = addDaysToKey(cursor, 1);
   }
   return dates;
 }
@@ -147,9 +148,16 @@ export async function POST(request: Request) {
   } = body;
 
   // ---- Field validation --------------------------------------------
-  if (!date || !startTime || !endTime) {
+  if (
+    typeof date !== "string" ||
+    typeof startTime !== "string" ||
+    typeof endTime !== "string" ||
+    !isValidDateKey(date) ||
+    !/^\d{2}:\d{2}(:\d{2})?$/.test(startTime) ||
+    !/^\d{2}:\d{2}(:\d{2})?$/.test(endTime)
+  ) {
     return NextResponse.json(
-      { error: "Date, start time, and end time are required." },
+      { error: "A valid date, start time, and end time are required." },
       { status: 400 }
     );
   }
@@ -164,7 +172,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const todayKey = toDateKey(new Date().toISOString());
+  const timezone = await getAppTimezone(supabase);
+  const todayKey = dateKeyIn(timezone);
   if (date < todayKey) {
     return NextResponse.json(
       { error: "You cannot set availability for a past date." },
@@ -183,7 +192,7 @@ export async function POST(request: Request) {
 
   if (wantsRecurrence) {
     const until: string = String(recurrence.until);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(until) || until < date) {
+    if (typeof until !== "string" || !isValidDateKey(until) || until < date) {
       return NextResponse.json(
         { error: "Pick an end date on or after the start date." },
         { status: 400 }
@@ -270,8 +279,9 @@ export async function POST(request: Request) {
     if (error.code === "23P01") {
       return NextResponse.json({ error: OVERLAP_MESSAGE }, { status: 409 });
     }
+    console.error("[availability] insert failed:", error.message);
     return NextResponse.json(
-      { error: error.message || "Failed to save availability." },
+      { error: "Failed to save availability. Try again." },
       { status: 400 }
     );
   }
@@ -297,14 +307,23 @@ export async function PUT(request: Request) {
   const { id, date, start_time: startTime, end_time: endTime, notes, status } =
     body ?? {};
 
-  if (!id || !date || !startTime || !endTime) {
+  if (
+    typeof id !== "string" ||
+    typeof date !== "string" ||
+    typeof startTime !== "string" ||
+    typeof endTime !== "string" ||
+    !isValidDateKey(date) ||
+    !/^\d{2}:\d{2}(:\d{2})?$/.test(startTime) ||
+    !/^\d{2}:\d{2}(:\d{2})?$/.test(endTime)
+  ) {
     return NextResponse.json(
-      { error: "ID, date, start time, and end time are required." },
+      { error: "A valid ID, date, start time, and end time are required." },
       { status: 400 }
     );
   }
 
-  const todayKey = toDateKey(new Date().toISOString());
+  const timezone = await getAppTimezone(supabase);
+  const todayKey = dateKeyIn(timezone);
   if (date < todayKey) {
     return NextResponse.json(
       { error: "You cannot set availability for a past date." },
@@ -358,8 +377,9 @@ export async function PUT(request: Request) {
     if (error.code === "23P01") {
       return NextResponse.json({ error: OVERLAP_MESSAGE }, { status: 409 });
     }
+    console.error("[availability] update failed:", error.message);
     return NextResponse.json(
-      { error: error.message || "Failed to update availability." },
+      { error: "Failed to update availability. Try again." },
       { status: 400 }
     );
   }
@@ -408,8 +428,9 @@ export async function DELETE(request: Request) {
   const { error } = await query;
 
   if (error) {
+    console.error("[availability] delete failed:", error.message);
     return NextResponse.json(
-      { error: error.message || "Failed to delete availability." },
+      { error: "Failed to delete availability. Try again." },
       { status: 400 }
     );
   }

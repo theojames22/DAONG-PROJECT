@@ -524,7 +524,7 @@ export default function MyScheduleView({ profile }: MyScheduleViewProps) {
       {/* Top bar controls */}
       <EmployeeTopBar
         employeeId={profile.id}
-        employeeName={profile.full_name || "Alex Mercer"}
+        employeeName={profile.full_name || "Staff"}
         employeeEmail={profile.email ?? null}
         employeeAvatarUrl={profile.profile_picture_url ?? null}
         initialTheme={profile.theme_preference ?? "light"}
@@ -533,7 +533,7 @@ export default function MyScheduleView({ profile }: MyScheduleViewProps) {
 
       {/* Floating sidebar */}
       <StaffSidebar
-        fullName={profile.full_name || "Alex Mercer"}
+        fullName={profile.full_name || "Staff"}
         position={profile.position}
         employeeId={profile.id}
         avatarUrl={profile.profile_picture_url}
@@ -544,7 +544,7 @@ export default function MyScheduleView({ profile }: MyScheduleViewProps) {
         <StaffHeader
           title="My Schedule"
           description="Manage your availability and let the team know when you're available."
-          fullName={profile.full_name || "Alex Mercer"}
+          fullName={profile.full_name || "Staff"}
           employeeId={profile.id}
           employeeEmail={profile.email ?? null}
           employeeAvatarUrl={profile.profile_picture_url ?? null}

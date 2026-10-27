@@ -110,19 +110,29 @@ export async function GET(request: Request) {
       });
     }
 
-    // Closed month — finalize on demand, then read the frozen snapshot.
-    const { error: finalizeError } = await supabase.rpc("finalize_month", {
-      p_month: `${month}-01`,
-    });
-    if (finalizeError) {
-      if (finalizeError.code === "42883") {
-        throw new ReportError(
-          "Monthly reports aren't set up yet. Run supabase/reports.sql in your Supabase SQL editor."
-        );
+    // Closed month — finalize only if this month has never been frozen.
+    // Never rewrite an existing snapshot just because its details were
+    // opened; re-finalization is an explicit Head action.
+    const { data: existingSnapshot } = await supabase
+      .from("monthly_report_snapshots")
+      .select("employee_id")
+      .eq("employee_id", userId)
+      .eq("month", `${month}-01`)
+      .maybeSingle();
+
+    if (!existingSnapshot) {
+      const { error: finalizeError } = await supabase.rpc("finalize_month_head", {
+        p_month: `${month}-01`,
+      });
+      if (finalizeError) {
+        if (finalizeError.code === "42883") {
+          throw new ReportError(
+            "Monthly reports aren't set up yet. Run supabase/security_hardening_2026-10-28.sql in your Supabase SQL editor."
+          );
+        }
+        console.error("[reports/person] finalize failed:", finalizeError.message);
+        throw new ReportError("Could not finalize this month. Try again.");
       }
-      throw new ReportError(
-        finalizeError.message || "Could not finalize this month."
-      );
     }
 
     const { data: snapshot, error: snapshotError } = await supabase

@@ -44,17 +44,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: rowsWritten, error } = await supabase.rpc("finalize_month", {
+    const { data: rowsWritten, error } = await supabase.rpc("finalize_month_head", {
       p_month: `${month}-01`,
     });
 
     if (error) {
       if (error.code === "42883") {
         throw new ReportError(
-          "Monthly reports aren't set up yet. Run supabase/reports.sql in your Supabase SQL editor."
+          "Monthly reports aren't set up yet. Run supabase/security_hardening_2026-10-28.sql in your Supabase SQL editor."
         );
       }
-      throw new ReportError(error.message || "Could not finalize this month.");
+      console.error("[reports/finalize] RPC failed:", error.message);
+      throw new ReportError("Could not finalize this month. Try again.");
     }
 
     return NextResponse.json({ success: true, rowsWritten: rowsWritten ?? 0 });

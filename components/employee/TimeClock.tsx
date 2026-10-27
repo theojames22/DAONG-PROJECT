@@ -58,12 +58,16 @@ export default function TimeClock({ employeeId }: { employeeId: string }) {
   async function handleClockIn() {
     setError(null);
     setIsSubmitting(true);
-    const { error: insertError } = await supabase
-      .from("sessions")
-      .insert({ employee_id: employeeId, time_in: new Date().toISOString() });
+    // Attendance writes are server-authoritative: the RPC uses auth.uid(),
+    // database time, and enforces one open session per Staff account.
+    const { error: insertError } = await supabase.rpc("clock_in");
     setIsSubmitting(false);
     if (insertError) {
-      setError("Couldn't clock in. Try again.");
+      setError(
+        insertError.code === "23505"
+          ? "You already have an open session."
+          : "Couldn't clock in. Try again."
+      );
       return;
     }
     await loadToday();
@@ -74,13 +78,10 @@ export default function TimeClock({ employeeId }: { employeeId: string }) {
     if (!openSession) return;
     setError(null);
     setIsSubmitting(true);
-    const { error: updateError } = await supabase
-      .from("sessions")
-      .update({ time_out: new Date().toISOString() })
-      .eq("id", openSession.id);
+    const { error: updateError } = await supabase.rpc("clock_out");
     setIsSubmitting(false);
     if (updateError) {
-      setError("Couldn't clock out. Try again.");
+      setError("Couldn't clock out. Refresh and try again.");
       return;
     }
     await loadToday();

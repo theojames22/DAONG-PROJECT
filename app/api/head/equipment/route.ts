@@ -51,7 +51,11 @@ export async function GET() {
     .order("name");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    console.error("[equipment] list failed:", error.message);
+    return NextResponse.json(
+      { error: "Could not load the equipment list." },
+      { status: 400 }
+    );
   }
 
   return NextResponse.json({ equipment: data ?? [] });
@@ -61,12 +65,13 @@ export async function POST(request: Request) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
 
-  const { name } = await request.json();
+  const body = await request.json().catch(() => null);
+  const name = body?.name;
   const trimmed = typeof name === "string" ? name.trim() : "";
 
-  if (!trimmed) {
+  if (!trimmed || trimmed.length > 120) {
     return NextResponse.json(
-      { error: "Equipment name is required." },
+      { error: "Equipment name is required (maximum 120 characters)." },
       { status: 400 }
     );
   }
@@ -87,7 +92,11 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    console.error("[equipment] insert failed:", error.message);
+    return NextResponse.json(
+      { error: "Could not add the equipment. Try again." },
+      { status: 400 }
+    );
   }
 
   return NextResponse.json({ equipment: data });
@@ -97,11 +106,17 @@ export async function DELETE(request: Request) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
 
-  const { id } = await request.json();
+  const body = await request.json().catch(() => null);
+  const id = body?.id;
 
-  if (!id) {
+  if (
+    typeof id !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      id
+    )
+  ) {
     return NextResponse.json(
-      { error: "Equipment ID is required." },
+      { error: "A valid equipment ID is required." },
       { status: 400 }
     );
   }
@@ -117,7 +132,11 @@ export async function DELETE(request: Request) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    console.error("[equipment] delete failed:", error.message);
+    return NextResponse.json(
+      { error: "Could not remove the equipment. Try again." },
+      { status: 400 }
+    );
   }
 
   return NextResponse.json({ success: true });

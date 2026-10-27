@@ -37,26 +37,24 @@ export default async function ProjectDetailPage({
     redirect("/employee");
   }
 
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      params.id
+    )
+  ) {
+    notFound();
+  }
+
   const supabase = await createClient();
 
-  // Try finding by project ID or source output ID
-  let { data: project } = await supabase
+  // The project is mirrored from its output by a database trigger. If it is
+  // missing, show 404 rather than running a full-table reconciliation with
+  // inserts that RLS correctly rejects for Staff.
+  const { data: project } = await supabase
     .from("projects")
     .select(PROJECT_COLUMNS)
     .or(`id.eq.${params.id},source_output_id.eq.${params.id}`)
     .maybeSingle();
-
-  if (!project) {
-    const { syncOutputsToProjects } = await import("@/lib/sync-projects");
-    await syncOutputsToProjects(supabase);
-
-    const { data: syncedProject } = await supabase
-      .from("projects")
-      .select(PROJECT_COLUMNS)
-      .or(`id.eq.${params.id},source_output_id.eq.${params.id}`)
-      .maybeSingle();
-    project = syncedProject;
-  }
 
   if (!project) notFound();
 

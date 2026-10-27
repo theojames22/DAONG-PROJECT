@@ -29,11 +29,14 @@ export default function LoginPage() {
   const navTimerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
+    // Only the email is remembered. Passwords must never be persisted in
+    // localStorage: it is readable by any script running on the origin and
+    // survives on shared devices. Supabase's own session cookie handles
+    // "stay signed in".
+    localStorage.removeItem("remembered_password");
     const savedEmail = localStorage.getItem("remembered_email");
-    const savedPassword = localStorage.getItem("remembered_password");
-    if (savedEmail && savedPassword) {
+    if (savedEmail) {
       setEmail(savedEmail);
-      setPassword(savedPassword);
       setRemember(true);
     }
   }, []);
@@ -81,29 +84,26 @@ export default function LoginPage() {
         throw authError;
       }
 
+      localStorage.removeItem("remembered_password");
       if (remember) {
         localStorage.setItem("remembered_email", email);
-        localStorage.setItem("remembered_password", password);
       } else {
         localStorage.removeItem("remembered_email");
-        localStorage.removeItem("remembered_password");
       }
 
-      // Fetch role + position directly from the profile so we can
-      // redirect without going through the server-rendered root
-      // page (avoids cookie timing issues). Role decides the
-      // dashboard: Head → /head, Staff → /employee.
+      // Role is the only routing authority. `position` is a display label
+      // and must never grant Head access or redirect a Staff account.
       const userId = data.session?.user?.id;
       let destination = "/employee";
 
       if (userId) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role, position")
+          .select("role")
           .eq("id", userId)
           .single();
 
-        if (profile?.role === "head" || profile?.position === "head") {
+        if (profile?.role === "head") {
           destination = "/head";
         }
       }

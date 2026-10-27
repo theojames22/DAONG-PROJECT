@@ -416,8 +416,8 @@ export default function MyOutputsView({
         avatarUrl={profile.profile_picture_url}
       />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 pb-14 pt-16 sm:px-6 lg:px-8">
-        <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-6">
+      <main className="relative z-10 mx-auto flex w-full max-w-[1720px] flex-col gap-6 px-4 pb-14 pt-16 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
+        <div className="flex w-full flex-col gap-6">
           <StaffHeader
             eyebrow="YOUR WORKSPACE"
             title="My Outputs"

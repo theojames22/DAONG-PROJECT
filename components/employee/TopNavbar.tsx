@@ -63,7 +63,7 @@ export default function TopNavbar({ fullName, position, employeeId }: TopNavbarP
             </div>
             <div className="hidden text-left sm:block">
               <p className="text-[12.5px] font-bold leading-tight text-slate-900">
-                {fullName || "Alex Mercer"}
+                {fullName || "Staff"}
               </p>
               <p className="text-[10.5px] font-medium text-slate-500 leading-tight">
                 {displayRole} • ID-{shortId}

@@ -86,10 +86,13 @@ export default function OutputMediaPreview({
   const TypeIcon = type.icon;
   const status = STATUS_META[output.status] ?? STATUS_META.pending;
   const url = attachmentUrl(output);
+  const hasStoredAttachment = Boolean(
+    output.storage_path || output.attachment_url
+  );
   const isImage = output.attachment_type === "image";
-  const showImage = isImage && !!url && !imageFailed;
+  const showImage = isImage && !!url && hasStoredAttachment && !imageFailed;
   const fileMissing =
-    (output.attachment_type === "file" || isImage) && !url;
+    (output.attachment_type === "file" || isImage) && !hasStoredAttachment;
 
   return (
     <div

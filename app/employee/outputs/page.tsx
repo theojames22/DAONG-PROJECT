@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedProfile, ProfileMissingError } from "@/lib/auth-utils";
 import { USER_ROLES } from "@/lib/constants";
-import { dayEndISO, dayStartISO, toDateKey } from "@/lib/attendance";
+import { dateKeyIn, dayEndISO, dayStartISO } from "@/lib/time";
+import { getAppTimezone } from "@/lib/report/queries";
 import type { Output, OutputStatus } from "@/lib/types";
 import MyOutputsView from "@/components/employee/outputs/MyOutputsView";
 import type { OutputCounts } from "@/components/employee/outputs/my-outputs-ui";
@@ -60,7 +61,8 @@ export default async function MyOutputsPage() {
   }
 
   const supabase = await createClient();
-  const today = toDateKey(new Date().toISOString());
+  const timezone = await getAppTimezone(supabase);
+  const today = dateKeyIn(timezone);
 
   // Three independent reads in one round trip. Every one is scoped to the
   // authenticated user id from the session — never to a client-supplied id —
@@ -78,8 +80,8 @@ export default async function MyOutputsPage() {
       .from("sessions")
       .select("id")
       .eq("employee_id", user.id)
-      .gte("time_in", dayStartISO(today))
-      .lte("time_in", dayEndISO(today))
+      .gte("time_in", dayStartISO(today, timezone))
+      .lte("time_in", dayEndISO(today, timezone))
       .limit(1),
   ]);
 

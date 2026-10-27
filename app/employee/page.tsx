@@ -2,8 +2,14 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedProfile, ProfileMissingError } from "@/lib/auth-utils";
 import { USER_ROLES } from "@/lib/constants";
-import { getWeekRange, toDateKey, dayStartISO, dayEndISO } from "@/lib/attendance";
-import { Session, Output } from "@/lib/types";
+import {
+  dateKeyIn,
+  dayEndISO,
+  dayStartISO,
+  weekRangeIn,
+} from "@/lib/time";
+import { getAppTimezone } from "@/lib/report/queries";
+import { Session } from "@/lib/types";
 import StaffDashboard from "@/components/employee/StaffDashboard";
 
 export default async function EmployeePage() {
@@ -25,34 +31,27 @@ export default async function EmployeePage() {
   }
 
   const supabase = await createClient();
-  const now = new Date();
-  const { start, end } = getWeekRange(now);
-  const today = toDateKey(now.toISOString());
+  const timezone = await getAppTimezone(supabase);
+  const { start, end } = weekRangeIn(timezone);
+  const today = dateKeyIn(timezone);
 
-  const [{ data: weekSessions }, { data: todaySessions }, { data: outputs }] =
-    await Promise.all([
-      supabase
-        .from("sessions")
-        .select("id, employee_id, time_in, time_out")
-        .eq("employee_id", user.id)
-        .gte("time_in", dayStartISO(start))
-        .lte("time_in", dayEndISO(end))
-        .order("time_in", { ascending: true }),
+  const [{ data: weekSessions }, { data: todaySessions }] = await Promise.all([
+    supabase
+      .from("sessions")
+      .select("id, employee_id, time_in, time_out")
+      .eq("employee_id", user.id)
+      .gte("time_in", dayStartISO(start, timezone))
+      .lte("time_in", dayEndISO(end, timezone))
+      .order("time_in", { ascending: true }),
 
-      supabase
-        .from("sessions")
-        .select("id, employee_id, time_in, time_out")
-        .eq("employee_id", user.id)
-        .gte("time_in", dayStartISO(today))
-        .lte("time_in", dayEndISO(today))
-        .order("time_in", { ascending: true }),
-
-      supabase
-        .from("outputs")
-        .select("*")
-        .eq("employee_id", user.id)
-        .order("created_at", { ascending: false }),
-    ]);
+    supabase
+      .from("sessions")
+      .select("id, employee_id, time_in, time_out")
+      .eq("employee_id", user.id)
+      .gte("time_in", dayStartISO(today, timezone))
+      .lte("time_in", dayEndISO(today, timezone))
+      .order("time_in", { ascending: true }),
+  ]);
 
   return (
     <StaffDashboard
@@ -68,7 +67,6 @@ export default async function EmployeePage() {
       }}
       initialWeekSessions={(weekSessions ?? []) as Session[]}
       initialTodaySessions={(todaySessions ?? []) as Session[]}
-      initialOutputs={(outputs ?? []) as Output[]}
     />
   );
 }

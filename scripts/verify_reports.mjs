@@ -25,6 +25,15 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 
+if (process.env.ALLOW_REPORT_SNAPSHOT_WRITES !== "true") {
+  console.error(
+    "Refusing to run: this script writes monthly report snapshots.\n" +
+      "Run it only against a staging project with " +
+      "ALLOW_REPORT_SNAPSHOT_WRITES=true."
+  );
+  process.exit(1);
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT = path.join(__dirname, "..");
 

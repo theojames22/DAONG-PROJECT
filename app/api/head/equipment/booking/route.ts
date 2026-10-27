@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { toDateKey } from "@/lib/attendance";
+import { dateKeyIn } from "@/lib/time";
+import { getAppTimezone } from "@/lib/report/queries";
 import { isMissingColumnError } from "@/lib/equipment";
 
 /**
@@ -46,7 +47,10 @@ async function requireAdmin() {
     };
   }
 
-  return { userId: user.id };
+  return {
+    userId: user.id,
+    timezone: await getAppTimezone(supabase),
+  };
 }
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -156,8 +160,8 @@ export async function POST(request: Request) {
 
   // The date can't be in the future (earlier today is fine — the
   // entry records usage that already happened).
-  const todayKey = toDateKey(new Date().toISOString());
-  if (toDateKey(startedAt.toISOString()) > todayKey) {
+  const todayKey = dateKeyIn(guard.timezone);
+  if (dateKeyIn(guard.timezone, startedAt) > todayKey) {
     return NextResponse.json(
       { error: "Usage can't be in the future." },
       { status: 400 }
@@ -165,6 +169,17 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+  const { data: target } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (target?.role !== "staff") {
+    return NextResponse.json(
+      { error: "Equipment usage can only be recorded for Staff." },
+      { status: 400 }
+    );
+  }
   const startedIso = startedAt.toISOString();
   const endedIso = endedAt.toISOString();
   const durationMinutes = Math.round(
@@ -216,8 +231,9 @@ export async function POST(request: Request) {
         );
       }
     }
+    console.error("[equipment/booking] insert failed:", insertError.message);
     return NextResponse.json(
-      { error: insertError.message || "Could not save the entry." },
+      { error: "Could not save the entry. Try again." },
       { status: 400 }
     );
   }
@@ -277,10 +293,23 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const todayKey = toDateKey(new Date().toISOString());
-  if (toDateKey(startedAt.toISOString()) > todayKey) {
+  const todayKey = dateKeyIn(guard.timezone);
+  if (dateKeyIn(guard.timezone, startedAt) > todayKey) {
     return NextResponse.json(
       { error: "Usage can't be in the future." },
+      { status: 400 }
+    );
+  }
+
+  const admin = createAdminClient();
+  const { data: target } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (target?.role !== "staff") {
+    return NextResponse.json(
+      { error: "Equipment usage can only be recorded for Staff." },
       { status: 400 }
     );
   }
@@ -293,7 +322,7 @@ export async function PATCH(request: Request) {
 
   // Re-check both conflict rules against real rows, ignoring the row
   // being edited so a record never conflicts with itself.
-  const conflict = await findConflicts(createAdminClient(), {
+  const conflict = await findConflicts(admin, {
     equipmentId,
     userId,
     startedIso,
@@ -357,8 +386,9 @@ export async function PATCH(request: Request) {
         { status: 400 }
       );
     }
+    console.error("[equipment/booking] update failed:", error.message);
     return NextResponse.json(
-      { error: error.message || "Could not save the changes." },
+      { error: "Could not save the changes. Try again." },
       { status: 400 }
     );
   }
@@ -403,8 +433,9 @@ export async function DELETE(request: Request) {
     .select("id");
 
   if (error) {
+    console.error("[equipment/booking] delete failed:", error.message);
     return NextResponse.json(
-      { error: error.message || "Couldn't delete the entry." },
+      { error: "Couldn't delete the entry. Try again." },
       { status: 400 }
     );
   }

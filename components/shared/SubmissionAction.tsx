@@ -76,6 +76,11 @@ export default function SubmissionAction({
     "inline-flex items-center gap-1 text-[11.5px] font-medium text-slate-400";
 
   const safeUrl = url && isSafeHttpUrl(url) ? url : null;
+  const fileHref = projectId
+    ? `/api/projects/${encodeURIComponent(projectId)}/file`
+    : outputId
+      ? `/api/outputs/${encodeURIComponent(outputId)}/file`
+      : safeUrl;
   const body = (fetchedBody ?? content ?? "").trim();
 
   const icon =
@@ -181,12 +186,12 @@ export default function SubmissionAction({
 
   // ------------------------------------------------------------------ image
   if (type === "image") {
-    if (!safeUrl) {
+    if (!fileHref) {
       return <span className={mutedClass}>Image unavailable</span>;
     }
     return (
       <a
-        href={safeUrl}
+        href={fileHref}
         target="_blank"
         rel="noopener noreferrer"
         className={styleClass}
@@ -198,28 +203,18 @@ export default function SubmissionAction({
   }
 
   // ------------------------------------------------------------------- file
-  if (projectId) {
+  if (fileHref) {
+    const href = fileHref.startsWith("/api/")
+      ? `${fileHref}${fileHref.includes("?") ? "&" : "?"}download=1`
+      : fileHref;
     return (
       <a
-        href={`/api/projects/${projectId}/download`}
+        href={href}
         download={safeFileName(fileName || title || "download")}
         className={styleClass}
       >
         {icon}
         {label ?? "Download file"}
-      </a>
-    );
-  }
-  if (safeUrl) {
-    return (
-      <a
-        href={safeUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={styleClass}
-      >
-        {icon}
-        {label ?? "Open file"}
       </a>
     );
   }

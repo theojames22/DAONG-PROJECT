@@ -101,7 +101,10 @@ async function fetchEligiblePeople(
   if (filters.position) query = query.eq("position", filters.position);
 
   const { data, error } = await query;
-  if (error) throw new ReportError(error.message);
+  if (error) {
+    console.error("[reports] eligible people query failed:", error.message);
+    throw new ReportError("Could not load the report population.");
+  }
   return (data ?? []) as ReportPersonView[];
 }
 
@@ -135,7 +138,10 @@ export async function fetchMonthDayRows(
         .lte("date", monthEndKey(month)),
     ]);
 
-  if (daysError) throw new ReportError(daysError.message);
+  if (daysError) {
+    console.error("[reports] day rows query failed:", daysError.message);
+    throw new ReportError("Could not load attendance details for this report.");
+  }
 
   const flags = new Map<
     string,
@@ -296,21 +302,29 @@ export async function assembleMonthReport(
       is_you: person.id === viewerId,
     }));
   } else {
-    // Closed month: finalize on demand (idempotent) and read the
-    // frozen snapshot back, so later edits cannot change history.
-    const { error: finalizeError } = await supabase.rpc("finalize_month", {
-      p_month: `${month}-01`,
-    });
-    if (finalizeError) {
-      if (finalizeError.code === "42883") {
-        throw new ReportError(
-          "Monthly reports aren't set up yet. Run supabase/reports.sql in your Supabase SQL editor.",
-          400
-        );
+    // Closed month: read the frozen snapshot. Finalize only when the month
+    // has never been finalized. Re-finalizing on every page load would
+    // silently rewrite history (and bump its version) whenever a source row
+    // changed; an explicit Head finalize call is the correction path.
+    const { count: snapshotCount } = await supabase
+      .from("monthly_report_snapshots")
+      .select("employee_id", { count: "exact", head: true })
+      .eq("month", `${month}-01`);
+
+    if (!snapshotCount) {
+      const { error: finalizeError } = await supabase.rpc("finalize_month_head", {
+        p_month: `${month}-01`,
+      });
+      if (finalizeError) {
+        if (finalizeError.code === "42883") {
+          throw new ReportError(
+            "Monthly reports aren't set up yet. Run supabase/security_hardening_2026-10-28.sql in your Supabase SQL editor.",
+            400
+          );
+        }
+        console.error("[reports] finalize failed:", finalizeError.message);
+        throw new ReportError("Could not finalize this month. Try again.");
       }
-      throw new ReportError(
-        finalizeError.message || "Could not finalize this month."
-      );
     }
 
     const { data: snapshots, error: snapshotError } = await supabase
@@ -324,7 +338,10 @@ export async function assembleMonthReport(
         populationPeople.map((p) => p.id)
       );
 
-    if (snapshotError) throw new ReportError(snapshotError.message);
+    if (snapshotError) {
+      console.error("[reports] snapshot query failed:", snapshotError.message);
+      throw new ReportError("Could not load the finalized report.");
+    }
     const snapshotRows = (snapshots ?? []) as SnapshotRow[];
 
     rows = rowsFromSnapshots(populationPeople, snapshotRows, viewerId);

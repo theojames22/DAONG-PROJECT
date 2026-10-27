@@ -3,13 +3,19 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedProfile, ProfileMissingError } from "@/lib/auth-utils";
 import { USER_ROLES } from "@/lib/constants";
 import {
-  addDaysKey,
   formatWeekBadge,
   getDayStatus,
-  getWeekRange,
   totalHours,
 } from "@/lib/attendance";
-import { dateKeyIn } from "@/lib/report/calc";
+import {
+  addDaysToKey,
+  dateKeyIn,
+  dayEndISO,
+  dayStartISO,
+  isValidDateKey,
+  weekRangeForKey,
+  weekRangeIn,
+} from "@/lib/time";
 import { getAppTimezone } from "@/lib/report/queries";
 import { Profile, Session, Output, WeekHours } from "@/lib/types";
 import DashboardHeader from "@/components/head/dashboard/DashboardHeader";
@@ -52,39 +58,53 @@ export default async function HeadPage({
 
   const supabase = await createClient();
 
-  // ---- Selected week (drives the Weekly Leaderboard) ----
-  // Defaults to the current Monday–Sunday week; ends there so a future week
-  // can never be opened.
-  const currentWeek = getWeekRange(new Date());
-  const requestedWeek = searchParams.week
-    ? getWeekRange(new Date(`${searchParams.week}T00:00:00`))
-    : currentWeek;
+  // The app's configured timezone (app_settings.timezone) is the same clock
+  // the database trigger and reports use. Resolve it before calculating the
+  // week, otherwise a UTC server would show last week every Monday morning
+  // in Manila.
+  const timezone = await getAppTimezone(supabase);
+  const today = dateKeyIn(timezone);
+  const currentWeek = weekRangeIn(timezone);
+
+  // Selected week (drives the Weekly Leaderboard). Invalid or future weeks
+  // fall back to the current one instead of reaching the database as NaN.
+  const requestedWeek =
+    searchParams.week && isValidDateKey(searchParams.week)
+      ? weekRangeForKey(searchParams.week)
+      : currentWeek;
   const selectedWeek =
     requestedWeek.start > currentWeek.start ? currentWeek : requestedWeek;
   const weekStart = selectedWeek.start;
   const weekEnd = selectedWeek.end;
 
+  const todayStart = dayStartISO(today, timezone);
+  const todayEnd = dayEndISO(today, timezone);
+
   const [
-    timezone,
     { data: profiles },
     { data: sessions, error: sessionsError },
     { data: outputs, error: outputsError },
     { data: weekHours, error: weekHoursError },
+    { count: pendingReviewTotal, error: pendingReviewError },
   ] = await Promise.all([
-    // The app's configured timezone (app_settings.timezone) — the same clock
-    // the database trigger and reports use.
-    getAppTimezone(supabase),
     supabase
       .from("profiles")
       .select("id, full_name, position, role, required_weekly_hours, profile_picture_url")
       .eq("role", "staff")
       .order("full_name"),
-    supabase.from("sessions").select("id, employee_id, time_in, time_out"),
+    // Only today's attendance is needed by the dashboard. Loading every
+    // session ever recorded made the page slower every month.
+    supabase
+      .from("sessions")
+      .select("id, employee_id, time_in, time_out")
+      .gte("time_in", todayStart)
+      .lte("time_in", todayEnd),
     supabase
       .from("outputs")
       .select(
         "id, employee_id, date, title, attachment_type, attachment_url, status, reviewer_notes, created_at"
       )
+      .eq("date", today)
       .order("created_at", { ascending: false }),
     // Credited hours for the selected week — the canonical
     // attendance_days ⋈ submitted-outputs figure, never raw logged time.
@@ -92,11 +112,13 @@ export default async function HeadPage({
       .from("employee_week_hours")
       .select("employee_id, week_start, credited_hours, attendance_hours")
       .eq("week_start", weekStart),
+    // The review count is a count query, not the entire outputs table.
+    supabase
+      .from("outputs")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending", "checking"]),
   ]);
 
-  // "Today" is the current day in the app timezone, and every session/output
-  // is matched on that same basis so a UTC server never shifts the day.
-  const today = dateKeyIn(timezone);
   const dayKeyOf = (iso: string) => dateKeyIn(timezone, new Date(iso));
 
   const employees = (profiles ?? []) as Profile[];
@@ -159,11 +181,12 @@ export default async function HeadPage({
   // approval) and "absent" are all excluded — this section is about missing
   // submissions, not pending approvals or open shifts.
   const needsAttention = rows.filter((r) => r.status === "unverified");
-  // Still awaiting a decision — a rejected submission is decided, so it
-  // must not keep inflating this count forever.
-  const pendingReviewCount = allOutputs.filter(
-    (o) => o.status === "pending" || o.status === "checking"
-  ).length;
+  // Still awaiting a decision across all open months. This is a count query
+  // rather than a full-table read, so the card does not grow without bound.
+  if (pendingReviewError) {
+    console.error("[head] pending review count failed:", pendingReviewError.message);
+  }
+  const pendingReviewCount = pendingReviewTotal ?? 0;
 
   // ---- Timeline: today's sessions per employee, oldest first. ----
   // Heads are administrators and do not clock in/out, so only Staff
@@ -264,8 +287,8 @@ export default async function HeadPage({
         <WeeklyLeaderboardCard
           entries={leaderboardEntries}
           weekLabel={weekLabel}
-          prevWeek={addDaysKey(weekStart, -7)}
-          nextWeek={addDaysKey(weekStart, 7)}
+          prevWeek={addDaysToKey(weekStart, -7)}
+          nextWeek={addDaysToKey(weekStart, 7)}
           canGoNext={weekStart < currentWeek.start}
           error={leaderboardError}
         />

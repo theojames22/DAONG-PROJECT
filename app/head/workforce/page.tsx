@@ -3,7 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedProfile, ProfileMissingError } from "@/lib/auth-utils";
 import { USER_ROLES } from "@/lib/constants";
 import { Profile, Session, Output, WeekHours } from "@/lib/types";
-import { toDateKey, totalHours, getWeekRange } from "@/lib/attendance";
+import { totalHours } from "@/lib/attendance";
+import {
+  dateKeyIn,
+  dayEndISO,
+  dayStartISO,
+  isValidDateKey,
+  weekRangeForKey,
+  weekRangeIn,
+} from "@/lib/time";
+import { getAppTimezone } from "@/lib/report/queries";
 import WorkforceHeader from "@/components/head/workforce/WorkforceHeader";
 import WorkforceView from "@/components/head/workforce/WorkforceView";
 import { type AttendanceRow } from "@/components/head/workforce/AttendanceTable";
@@ -46,17 +55,32 @@ export default async function WorkforcePage({
   }
 
   const view: "card" | "list" = searchParams.view === "list" ? "list" : "card";
-  const date = searchParams.date || toDateKey(new Date().toISOString());
 
   const supabase = await createClient();
+  const timezone = await getAppTimezone(supabase);
+  const todayKey = dateKeyIn(timezone);
+  const date =
+    searchParams.date && isValidDateKey(searchParams.date)
+      ? searchParams.date
+      : todayKey;
 
   // Current week (for the leaderboard) and the selected date's week (for the
   // attendance table) — usually the same, fetched separately so a Head can
   // browse another week's attendance without shifting the leaderboard.
-  const now = new Date();
-  const { start: weekStart, end: weekEnd } = getWeekRange(now);
-  const { start: selectedWeekStart, end: selectedWeekEnd } = getWeekRange(
-    new Date(`${date}T00:00:00`)
+  const currentWeek = weekRangeIn(timezone);
+  const selectedWeek = weekRangeForKey(date);
+  const { start: weekStart, end: weekEnd } = currentWeek;
+  const { start: selectedWeekStart, end: selectedWeekEnd } = selectedWeek;
+
+  // Load only the sessions that either view can render: the union of the
+  // current leadership week and the selected attendance week.
+  const sessionsStart = dayStartISO(
+    weekStart < selectedWeekStart ? weekStart : selectedWeekStart,
+    timezone
+  );
+  const sessionsEnd = dayEndISO(
+    weekEnd > selectedWeekEnd ? weekEnd : selectedWeekEnd,
+    timezone
   );
 
   const [
@@ -72,7 +96,11 @@ export default async function WorkforcePage({
         "id, full_name, email, position, role, required_weekly_hours, profile_picture_url, qr_token"
       )
       .order("full_name"),
-    supabase.from("sessions").select("id, employee_id, time_in, time_out"),
+    supabase
+      .from("sessions")
+      .select("id, employee_id, time_in, time_out")
+      .gte("time_in", sessionsStart)
+      .lte("time_in", sessionsEnd),
     supabase
       .from("employee_week_hours")
       .select(
@@ -106,11 +134,12 @@ export default async function WorkforcePage({
     creditedByEmployee[row.employee_id] = Number(row.credited_hours) || 0;
   }
 
-  const todayKey = toDateKey(now.toISOString());
   const activeEmployeeIds = Array.from(
     new Set(
       allSessions
-        .filter((s) => !s.time_out && toDateKey(s.time_in) === todayKey)
+        .filter(
+          (s) => !s.time_out && dateKeyIn(timezone, new Date(s.time_in)) === todayKey
+        )
         .map((s) => s.employee_id)
     )
   );
@@ -125,7 +154,7 @@ export default async function WorkforcePage({
   const todayByEmployee = new Map<string, Session[]>();
   const weekByEmployee = new Map<string, Session[]>();
   for (const s of allSessions) {
-    const key = toDateKey(s.time_in);
+    const key = dateKeyIn(timezone, new Date(s.time_in));
     if (key === date) {
       const arr = todayByEmployee.get(s.employee_id) ?? [];
       arr.push(s);

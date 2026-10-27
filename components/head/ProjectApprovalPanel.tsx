@@ -238,10 +238,10 @@ export default function ProjectApprovalPanel({
           </div>
         )}
 
-        {isImage && project.file_url && (
+        {isImage && (project.source_output_id || project.file_url) && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={project.file_url}
+            src={`/api/projects/${encodeURIComponent(project.id)}/file`}
             alt={project.title}
             className="mt-4 max-h-72 w-auto rounded-lg border border-border object-contain"
           />

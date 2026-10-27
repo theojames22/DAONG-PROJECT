@@ -13,9 +13,9 @@ export default function MyOutputsLoading() {
       className={`${styles.scope} ${styles.page} min-h-screen font-sans antialiased`}
       aria-busy="true"
     >
-      <main className="relative z-10 mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 pb-14 pt-16 sm:px-6 lg:px-8">
-        <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
+      <main className="relative z-10 mx-auto flex w-full max-w-[1720px] flex-col gap-6 px-4 pb-14 pt-16 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
+        <div className="flex w-full flex-col gap-6">
+          <div className="flex flex-wrap items-end justify-between gap-4 pl-12 sm:pl-14 lg:pl-0">
             <div className="flex flex-col gap-3">
               <span
                 className={styles.skeleton}

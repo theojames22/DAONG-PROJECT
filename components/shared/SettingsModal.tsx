@@ -136,10 +136,7 @@ export default function SettingsModal({
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({
-          full_name: name.trim() || null,
-          position: profilePosition.trim() || null,
-        })
+        .update({ full_name: name.trim() || null })
         .eq("id", userId);
       if (error) throw error;
       setProfileFeedback({ type: "success", text: "Profile saved." });
@@ -367,17 +364,17 @@ export default function SettingsModal({
                   className="elev-pressed neu-focus rounded-xl px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle outline-none"
                 />
               </label>
-              <label className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5">
                 <span className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-muted">
                   Position
                 </span>
-                <input
-                  value={profilePosition}
-                  onChange={(e) => setProfilePosition(e.target.value)}
-                  placeholder="e.g. System Administrator"
-                  className="elev-pressed neu-focus rounded-xl px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle outline-none"
-                />
-              </label>
+                <div className="elev-pressed flex min-h-[38px] items-center rounded-xl px-3 py-2 text-[13px] text-ink-muted">
+                  {profilePosition.trim() || "Not assigned"}
+                </div>
+                <span className="text-[10.5px] text-ink-subtle">
+                  Position and role are managed by a Head.
+                </span>
+              </div>
             </div>
 
             <div className="mt-3 flex items-center gap-3">

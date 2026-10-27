@@ -60,8 +60,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    console.error("[equipment/cancel] failed:", error.message);
     return NextResponse.json(
-      { error: error.message || "Couldn't cancel the booking." },
+      { error: "Couldn't cancel the booking. Try again." },
       { status: 400 }
     );
   }

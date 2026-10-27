@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { totalHours, creditedProgress } from "@/lib/attendance";
 import {
-  getWeekRange,
-  totalHours,
-  creditedProgress,
-  toDateKey,
-  dayStartISO,
+  dateKeyIn,
   dayEndISO,
-} from "@/lib/attendance";
+  dayStartISO,
+  isValidDateKey,
+  weekRangeForKey,
+} from "@/lib/time";
+import { getAppTimezone } from "@/lib/report/queries";
 import { Session, Output, AttendanceDay, WeekHours } from "@/lib/types";
 
 function formatTime(iso: string) {
@@ -41,14 +42,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2. Parse query parameters
+  // 2. Parse query parameters. Dates are calendar keys in the app timezone,
+  //    never host-local dates.
+  const timezone = await getAppTimezone(supabase);
   const { searchParams } = new URL(request.url);
   const dateParam = searchParams.get("date");
-  const selectedDate = dateParam || toDateKey(new Date().toISOString());
+  const selectedDate =
+    dateParam && isValidDateKey(dateParam)
+      ? dateParam
+      : dateKeyIn(timezone);
 
-  // 3. Calculate week range for selectedDate
-  const targetDate = new Date(selectedDate);
-  const { start: weekStart, end: weekEnd, days: weekDaysKeys } = getWeekRange(targetDate);
+  // 3. Calculate the Monday–Sunday week for selectedDate.
+  const {
+    start: weekStart,
+    end: weekEnd,
+    days: weekDaysKeys,
+  } = weekRangeForKey(selectedDate);
 
   // 4. Fetch profile, the day's + week's sessions, the persisted
   //    attendance days for the same two windows, the credited-hours
@@ -61,6 +70,7 @@ export async function GET(request: Request) {
     { data: weekAttendanceRaw },
     { data: weekHoursRaw },
     { data: outputsRaw },
+    { data: openSessionRaw },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -72,16 +82,16 @@ export async function GET(request: Request) {
       .from("sessions")
       .select("id, employee_id, time_in, time_out")
       .eq("employee_id", user.id)
-      .gte("time_in", dayStartISO(selectedDate))
-      .lte("time_in", dayEndISO(selectedDate))
+      .gte("time_in", dayStartISO(selectedDate, timezone))
+      .lte("time_in", dayEndISO(selectedDate, timezone))
       .order("time_in", { ascending: true }),
 
     supabase
       .from("sessions")
       .select("id, employee_id, time_in, time_out")
       .eq("employee_id", user.id)
-      .gte("time_in", dayStartISO(weekStart))
-      .lte("time_in", dayEndISO(weekEnd))
+      .gte("time_in", dayStartISO(weekStart, timezone))
+      .lte("time_in", dayEndISO(weekEnd, timezone))
       .order("time_in", { ascending: true }),
 
     // The durable attendance history, written by the sessions trigger.
@@ -121,6 +131,17 @@ export async function GET(request: Request) {
       )
       .eq("employee_id", user.id)
       .order("created_at", { ascending: false }),
+
+    // The open shift is independent of the selected date. A Staff member
+    // browsing last week must still be able to submit today's deliverable.
+    supabase
+      .from("sessions")
+      .select("id, employee_id, time_in, time_out")
+      .eq("employee_id", user.id)
+      .is("time_out", null)
+      .order("time_in", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const daySessions = (daySessionsRaw ?? []) as Session[];
@@ -129,6 +150,7 @@ export async function GET(request: Request) {
   const dayAttendance = (dayAttendanceRaw ?? null) as AttendanceDay | null;
   const weekAttendance = (weekAttendanceRaw ?? []) as AttendanceDay[];
   const weekHours = (weekHoursRaw ?? null) as WeekHours | null;
+  const openSessionRawRow = (openSessionRaw ?? null) as Session | null;
 
   // 5. Attendance hours — read from the persisted attendance_days rows.
   //    Falling back to a live totalHours() keeps the UI honest if the
@@ -167,6 +189,7 @@ export async function GET(request: Request) {
 
   // 7. Check open session
   const openSession =
+    openSessionRawRow ||
     daySessions.find((s) => !s.time_out) ||
     weekSessions.find((s) => !s.time_out) ||
     null;
@@ -192,16 +215,25 @@ export async function GET(request: Request) {
   //    the same seven days the queries above used — Monday first, Sunday
   //    last — and can never drift out of sync with the week window.
   const weekTelemetry = weekDaysKeys.map((dateKey) => {
-    // Local midnight, matching every other date key in the app. Parsing the
-    // bare "YYYY-MM-DD" would be UTC and shift the day in western timezones.
-    const d = new Date(`${dateKey}T00:00:00`);
-    const name = d.toLocaleDateString("en-US", { weekday: "long" });
+    // A date key is a calendar label, not an instant. Render it in UTC so a
+    // server in any timezone produces the same weekday/month for that label.
+    const [year, month, day] = dateKey.split("-").map(Number);
+    const d = new Date(Date.UTC(year, month - 1, day));
+    const name = d.toLocaleDateString("en-US", {
+      weekday: "long",
+      timeZone: "UTC",
+    });
     const dayCode = name.slice(0, 2).toUpperCase();
-    const monthStr = d.toLocaleDateString("en-US", { month: "short" });
-    const dayNum = d.getDate();
+    const monthStr = d.toLocaleDateString("en-US", {
+      month: "short",
+      timeZone: "UTC",
+    });
+    const dayNum = d.getUTCDate();
     const dateStr = `${name}, ${monthStr} ${dayNum}`;
 
-    const sessionsForDay = weekSessions.filter((s) => toDateKey(s.time_in) === dateKey);
+    const sessionsForDay = weekSessions.filter(
+      (s) => dateKeyIn(timezone, new Date(s.time_in)) === dateKey
+    );
     const hours = totalHours(sessionsForDay);
     const hasOpen = sessionsForDay.some((s) => !s.time_out);
 

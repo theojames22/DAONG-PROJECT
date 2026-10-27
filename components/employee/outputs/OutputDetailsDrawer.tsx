@@ -260,6 +260,9 @@ export default function OutputDetailsDrawer({
   const StatusIcon = status.icon;
   const title = output.title?.trim() || "Untitled output";
   const url = attachmentUrl(output);
+  const hasStoredAttachment = Boolean(
+    output.storage_path || output.attachment_url
+  );
   const size = fileSizeLabel(output);
   const feedback =
     output.status !== "pending" && output.reviewer_notes?.trim()
@@ -484,7 +487,7 @@ export default function OutputDetailsDrawer({
                   </p>
                 </div>
 
-                {url ? (
+                {url && hasStoredAttachment ? (
                   <a
                     href={downloadUrl(
                       url,
@@ -500,7 +503,7 @@ export default function OutputDetailsDrawer({
                 ) : null}
               </div>
 
-              {!url && (
+              {(!url || !hasStoredAttachment) && (
                 <Unavailable>
                   This file isn&apos;t available anymore. The submission record and
                   its review result are unchanged.
@@ -515,7 +518,7 @@ export default function OutputDetailsDrawer({
                 Attached image
               </h3>
 
-              {url ? (
+              {url && hasStoredAttachment ? (
                 <>
                   <DrawerImage
                     key={`${output.id}-image`}

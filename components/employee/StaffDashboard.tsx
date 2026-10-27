@@ -127,7 +127,7 @@ export default function StaffDashboard({
       {/* Top bar controls */}
       <EmployeeTopBar
         employeeId={profile.id}
-        employeeName={profile.full_name || "Alex Mercer"}
+        employeeName={profile.full_name || "Staff"}
         employeeEmail={profile.email ?? null}
         employeeAvatarUrl={profile.profile_picture_url ?? null}
         initialTheme={profile.theme_preference ?? "light"}
@@ -136,7 +136,7 @@ export default function StaffDashboard({
 
       {/* Floating hamburger sidebar */}
       <StaffSidebar
-        fullName={profile.full_name || "Alex Mercer"}
+        fullName={profile.full_name || "Staff"}
         position={profile.position}
         employeeId={profile.id}
         avatarUrl={profile.profile_picture_url}
@@ -147,7 +147,7 @@ export default function StaffDashboard({
         <StaffHeader
           title="My dashboard"
           description="Track your recorded attendance, credited hours, and submit your work."
-          fullName={profile.full_name || "Alex Mercer"}
+          fullName={profile.full_name || "Staff"}
           employeeId={profile.id}
           employeeEmail={profile.email ?? null}
           employeeAvatarUrl={profile.profile_picture_url ?? null}

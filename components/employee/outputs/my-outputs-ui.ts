@@ -397,39 +397,37 @@ export function shortenUrl(url: string, max = 48): string {
 /**
  * The URL a submission is displayed/downloaded from.
  *
- * Prefers the stored URL (only when it is a safe http(s) value — a legacy row
- * could hold something else). If the row has a storage path but no URL, the
- * public object URL is reconstructed from the same `project-files` bucket the
- * upload route writes to, so a row whose URL was lost is still reachable.
+ * Links stay as their validated external URL. Files and images go through the
+ * authenticated route so the private bucket and the output's RLS policy are
+ * both enforced on every read. The route resolves legacy public URLs too.
  */
 export function attachmentUrl(
-  row: Pick<Output, "attachment_url" | "storage_path">
+  row: Pick<Output, "id" | "attachment_type" | "attachment_url" | "storage_path">
 ): string | null {
-  if (row.attachment_url && isSafeHttpUrl(row.attachment_url)) {
-    return row.attachment_url;
+  if (row.attachment_type === "link") {
+    return row.attachment_url && isSafeHttpUrl(row.attachment_url)
+      ? row.attachment_url
+      : null;
   }
 
-  if (row.storage_path) {
-    const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, "");
-    if (!base) return null;
-    const path = row.storage_path
-      .split("/")
-      .filter(Boolean)
-      .map(encodeURIComponent)
-      .join("/");
-    if (!path) return null;
-    return `${base}/storage/v1/object/public/project-files/${path}`;
+  if (row.attachment_type === "file" || row.attachment_type === "image") {
+    return row.id
+      ? `/api/outputs/${encodeURIComponent(row.id)}/file`
+      : null;
   }
 
   return null;
 }
 
 /**
- * Adds Supabase Storage's `?download=` flag so a cross-origin file is served
- * with an attachment disposition instead of opening in a tab. The `download`
- * attribute is ignored cross-origin, this is the mechanism that works.
+ * Mark an authenticated file route as a download. External URLs keep the
+ * Storage-compatible `?download=<name>` flag used by older rows.
  */
 export function downloadUrl(url: string, fileName: string): string {
+  if (url.startsWith("/api/")) {
+    return `${url}${url.includes("?") ? "&" : "?"}download=1`;
+  }
+
   try {
     const parsed = new URL(url);
     parsed.searchParams.set("download", fileName);

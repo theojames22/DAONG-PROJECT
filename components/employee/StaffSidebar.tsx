@@ -82,7 +82,7 @@ export default function StaffSidebar({
           )}
           <div className="min-w-0">
             <p className="font-display truncate text-[15px] font-bold leading-tight text-ink">
-              {fullName || "Alex Mercer"}
+              {fullName || "Staff"}
             </p>
             <p className="truncate text-[12px] text-ink-muted">
               {displayRole} • ID-{shortId}

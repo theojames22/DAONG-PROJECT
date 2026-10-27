@@ -19,9 +19,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
 
-  const { email } = await request.json();
+  const body = await request.json().catch(() => null);
+  const email = body?.email;
 
-  if (!email || typeof email !== "string" || !email.includes("@")) {
+  if (
+    typeof email !== "string" ||
+    email.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  ) {
     return NextResponse.json({ error: "A valid email is required." }, { status: 400 });
   }
 
@@ -36,7 +41,11 @@ export async function POST(request: Request) {
   });
 
   if (authError) {
-    return NextResponse.json({ error: authError.message }, { status: 400 });
+    console.error("[settings/email] auth update failed:", authError.message);
+    return NextResponse.json(
+      { error: "That email could not be used. Try another address." },
+      { status: 400 }
+    );
   }
 
   // Keep the cached copy on the profile in sync.
@@ -46,7 +55,11 @@ export async function POST(request: Request) {
     .eq("id", user.id);
 
   if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 400 });
+    console.error("[settings/email] profile sync failed:", profileError.message);
+    return NextResponse.json(
+      { error: "The email changed but the profile could not be updated. Contact a Head." },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ success: true });

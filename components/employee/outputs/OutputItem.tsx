@@ -114,6 +114,9 @@ export default function OutputItem({
   const status = STATUS_META[output.status] ?? STATUS_META.pending;
   const title = titleOf(output);
   const url = attachmentUrl(output);
+  const hasStoredAttachment = Boolean(
+    output.storage_path || output.attachment_url
+  );
   const feedback = hasFeedback(output);
   const submittedLabel = formatSubmittedStamp(output);
   const statusLabel = output.status === "done" ? "approved" : status.label.toLowerCase();
@@ -143,7 +146,7 @@ export default function OutputItem({
   if (view === "list") {
     const missingAttachment =
       (output.attachment_type === "file" || output.attachment_type === "image") &&
-      !url;
+      !hasStoredAttachment;
 
     return (
       <article
@@ -201,7 +204,7 @@ export default function OutputItem({
             </a>
           )}
           {output.attachment_type === "file" &&
-            (url ? (
+            (url && hasStoredAttachment ? (
               <a
                 href={downloadUrl(
                   url,
@@ -218,7 +221,7 @@ export default function OutputItem({
                 Download
               </button>
             ))}
-          {output.attachment_type === "image" && url && (
+          {output.attachment_type === "image" && url && hasStoredAttachment && (
             <button
               type="button"
               onClick={() =>

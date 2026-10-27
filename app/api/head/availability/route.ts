@@ -52,8 +52,9 @@ export async function GET(request: Request) {
   const { data: peopleData, error: peopleError } = await peopleQuery;
 
   if (peopleError) {
+    console.error("[head/availability] people query failed:", peopleError.message);
     return NextResponse.json(
-      { error: peopleError.message },
+      { error: "Could not load employee schedules." },
       { status: 400 }
     );
   }

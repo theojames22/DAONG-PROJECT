@@ -63,7 +63,7 @@ export default function WorkforceHeader({
           className={`flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white ${styles.btnPrimary}`}
         >
           <Plus className="h-4 w-4 stroke-[2.5]" />
-          Add employee
+          Add Member
         </button>
 
         {/* Notification Bell matching reference (shared — only wrapped) */}

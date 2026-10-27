@@ -130,7 +130,7 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
             </span>
             <div>
               <h2 id="modal-title" className="text-lg font-bold text-slate-900 leading-tight">
-                Add employee
+                Add Member
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
                 Create their account. Staff get a QR code for time-in and time-out.

@@ -27,15 +27,16 @@ export default function HeadTopBar({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const pathname = usePathname();
 
-  // On overview, attendance, team, projects, equipment log, schedule
-  // and reports, the page header itself embeds the cluster
+  // On overview, attendance, team, projects, equipment log, schedule,
+  // reports and compliance, the page header itself embeds the cluster
   if (
     pathname === "/head" ||
     pathname === "/head/workforce" ||
     pathname === "/head/projects" ||
     pathname === "/head/equipment" ||
     pathname === "/head/schedule" ||
-    pathname === "/head/reports"
+    pathname === "/head/reports" ||
+    pathname === "/head/compliance"
   ) {
     return null;
   }

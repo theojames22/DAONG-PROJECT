@@ -87,7 +87,7 @@ type DayKind =
   | "upcoming";
 
 const DAY_STYLE: Record<DayKind, { bg: string; label: string; ring?: string }> = {
-  credited: { bg: "#CDEEDB", label: "Recorded · output approved" },
+  credited: { bg: "#CDEEDB", label: "Recorded · output submitted" },
   recorded: { bg: "#DCE7FF", label: "Recorded · not credited" },
   incomplete: { bg: "#FFE4AE", label: "Incomplete · no time-out" },
   missing: { bg: "#F9D3D3", label: "Missing" },
@@ -96,7 +96,7 @@ const DAY_STYLE: Record<DayKind, { bg: string; label: string; ring?: string }> =
 };
 
 const LEGEND: { kind: DayKind; label: string }[] = [
-  { kind: "credited", label: "Recorded, approved" },
+  { kind: "credited", label: "Recorded, output submitted" },
   { kind: "recorded", label: "Recorded, not credited" },
   { kind: "incomplete", label: "Incomplete" },
   { kind: "missing", label: "Missing" },
@@ -556,7 +556,7 @@ function DailyLog({
                 : outputState === "pending"
                   ? { label: "Output pending", style: "bg-[#FFF0D1] text-[#8A5200]", icon: Clock }
                   : outputState === "rejected"
-                    ? { label: "No approved output", style: "bg-[#EEF2F8] text-[#44506A]", icon: FileOutput }
+                    ? { label: "Output rejected", style: "bg-[#FDE5E5] text-[#A82222]", icon: FileOutput }
                     : { label: "No output", style: "bg-[#EEF2F8] text-[#44506A]", icon: FileOutput };
 
             const OutputIcon = outputChip.icon;

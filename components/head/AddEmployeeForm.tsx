@@ -108,8 +108,8 @@ export default function AddEmployeeForm() {
       </div>
 
       <p className="-mt-1 text-[11.5px] leading-relaxed text-ink-muted">
-        Attendance hours are always recorded, but only hours on days with an
-        approved output are credited toward this requirement.
+        Attendance hours are always recorded, but only hours on days with a
+        submitted output are credited toward this requirement.
       </p>
 
       {error && <p className="text-[13px] text-red-600">{error}</p>}

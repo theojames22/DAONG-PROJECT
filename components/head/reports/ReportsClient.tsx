@@ -465,8 +465,9 @@ export default function ReportsClient({ admin }: ReportsClientProps) {
           {/* Footer legend + thresholds */}
           <div className="mt-5 flex flex-col gap-2 border-t border-[#E6EBF5] pt-4">
             <p className="text-[12px] leading-relaxed text-[#5F6A80]">
-              Compliance = credited hours ÷ required hours. Only hours on days with an
-              approved output are credited. Incomplete records (no time-out) are not
+              Compliance = credited hours ÷ required hours. Hours on any day with a
+              submitted output are credited, whatever its review status (pending,
+              approved or rejected). Incomplete records (no time-out) are not
               counted until corrected.
             </p>
             <p className="text-[12px] font-semibold leading-relaxed text-[#0F1B33]">

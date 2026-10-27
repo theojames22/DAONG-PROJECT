@@ -66,8 +66,8 @@ export default async function CompliancePage() {
         </p>
         <p className="mt-1 text-[12.5px] text-ink-muted">
           Total hours are attendance history. Credited hours are the part that
-          counts toward each weekly requirement — a day is credited only once it
-          has an approved output.
+          counts toward each weekly requirement — a day is credited once it
+          has a submitted output, whatever its review status.
         </p>
       </div>
 
@@ -101,7 +101,7 @@ export default async function CompliancePage() {
               const weekTotal = totalHours(eSessions);
 
               // Two independent numbers: hours logged (raw record) and
-              // hours credited (days with an approved output). Neither is
+              // hours credited (days with a submitted output). Neither is
               // derived from the other.
               const credited = creditedByEmployee.get(profile.id) ?? 0;
               const required = profile.required_weekly_hours;

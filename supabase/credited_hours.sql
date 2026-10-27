@@ -17,16 +17,18 @@
 --     credited_hours   — the slice of those hours that counts toward the
 --                        weekly requirement.
 --
---   Attendance hours are credited ONLY for a day on which the employee
---   has an output that is approved ('done') under the existing review
---   workflow. Clock 4 hours, submit nothing → 4 attendance hours,
---   credited 0/40. Get that day's output approved → the same 4 hours
---   become creditable, credited 4/40.
+--   Attendance hours are credited for any day on which the employee has
+--   SUBMITTED an output — whatever its review status, including
+--   'rejected'. Credit is about time worked and work handed in, not the
+--   reviewer's verdict; an open clock is still excluded until it closes.
+--   Clock 4 hours, submit nothing → 4 attendance hours, credited 0/40.
+--   Submit that day's output (pending, approved or rejected) → the same
+--   4 hours become creditable, credited 4/40.
 --
 --   Because credited hours are DERIVED from (attendance_days ⋈ outputs)
 --   rather than incremented, an output being reviewed, approved,
 --   rejected or updated can never double count: each day's hours are
---   summed at most once, and re-approving simply re-satisfies the join.
+--   summed at most once, and a decision only re-satisfies the join.
 --
 -- WHAT THIS DOES
 --   1. Persists attendance hours: the attendance_days table and the
@@ -300,12 +302,17 @@ alter table public.outputs
 -- ---------------------------------------------------------------------
 
 -- 4a. Per day: the recorded attendance hours, plus whether the day has
---     an approved output and is therefore creditable.
+--     a submitted output and is therefore creditable.
 --     A day that is still running is not credited yet — the clock has to
---     be closed before the hours are final.
+--     be closed before the hours are final. Review status does not
+--     matter: a rejected submission still represents time worked.
 create or replace view public.attendance_day_status
 with (security_invoker = true) as
-with approved_days as (
+with submitted_days as (
+  select distinct employee_id, date
+    from public.outputs
+),
+approved_days as (
   select distinct employee_id, date
     from public.outputs
    where status = 'done'
@@ -317,8 +324,14 @@ select
   d.session_count,
   d.has_open_session,
   (a.employee_id is not null) as has_approved_output,
-  (a.employee_id is not null and not d.has_open_session) as is_credited
+  (s.employee_id is not null and not d.has_open_session) as is_credited,
+  d.first_in,
+  d.last_out,
+  (s.employee_id is not null) as has_output
 from public.attendance_days d
+left join submitted_days s
+  on s.employee_id = d.employee_id
+ and s.date = d.date
 left join approved_days a
   on a.employee_id = d.employee_id
  and a.date = d.date;
@@ -392,18 +405,18 @@ on conflict (employee_id, date) do update
 --                                        ('outputs','units_deducted'));
 --   -- expect: zero rows
 --
---   -- credited hours are the approved-output days only:
+--   -- credited hours are the days with a submitted output:
 --   select employee_id, week_start, attendance_hours, credited_hours,
 --          credited_days, attendance_days
 --     from public.employee_week_hours order by week_start desc;
 --   -- credited_hours must equal the sum of hours on days that have an
---   -- approved output, and no larger
+--   -- output (any review status), and no larger
 --
 --   -- an output with no attendance must not credit anything:
 --   select count(*) from public.employee_week_hours where credited_hours > 0;
---   -- cross-check by hand against the approved outputs
+--   -- cross-check by hand against the submitted outputs
 --
---   -- rejecting an approval must take the credit back:
+--   -- rejecting a submission must NOT take the credit back:
 --   select employee_id, date, hours, has_approved_output, is_credited
 --     from public.attendance_day_status order by date desc;
 -- ---------------------------------------------------------------------

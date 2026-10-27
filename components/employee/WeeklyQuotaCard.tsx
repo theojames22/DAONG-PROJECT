@@ -3,7 +3,7 @@
 interface WeeklyQuotaCardProps {
   hoursThisWeek: number;
   requiredWeeklyHours: number;
-  /** Hours credited toward the weekly requirement (approved-output days only). */
+  /** Hours credited toward the weekly requirement (days with a submitted output). */
   creditedHours: number;
   standbyHours?: number;
   overtimeHours?: number;
@@ -127,9 +127,10 @@ export default function WeeklyQuotaCard({
         </div>
 
         <p className="mt-3 text-[10.5px] leading-relaxed text-ink-subtle">
-          Attendance hours are credited toward your requirement only for days
-          with an approved output. Hours logged without an approved output stay
-          in your attendance history and count for nothing.
+          Attendance hours are credited toward your requirement once you submit
+          an output for that day — pending, approved or rejected. Hours logged
+          without any submission stay in your attendance history and do not
+          count toward the requirement.
         </p>
       </div>
     </div>

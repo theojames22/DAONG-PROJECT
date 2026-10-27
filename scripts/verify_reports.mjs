@@ -110,9 +110,9 @@ console.log("\n3. Attendance aggregation");
 // Two sessions on one day: 90 min + 60 min = 2.5h, never double counted.
 const twoSessions = 1.5 + 1;
 ok("multiple sessions sum once (2.5h)", twoSessions === 2.5);
-// Multiple approved outputs on the same day still credit the day once.
+// Multiple outputs on the same day still credit the day once.
 const creditedOnce = 2.5;
-ok("two approved outputs credit the day once (2.5h)", creditedOnce === 2.5);
+ok("multiple outputs credit the day once (2.5h, any status)", creditedOnce === 2.5);
 // Incomplete day (open session) contributes 0 recorded hours.
 const incompleteContributes = 0;
 ok("incomplete day contributes 0 recorded hours", incompleteContributes === 0);
@@ -123,19 +123,19 @@ ok("a day with an incomplete row is not missing", isMissing === false);
 
 // Full rule check with the same shape the API returns.
 const days = [
-  // date, hours, open?, approved?
-  { date: "2026-10-05", hours: 4, has_open_session: false, has_approved_output: true },
-  { date: "2026-10-06", hours: 4, has_open_session: false, has_approved_output: false },
-  { date: "2026-10-07", hours: 2, has_open_session: true, has_approved_output: true },
+  // date, hours, open?, submitted (any review status, incl. rejected)?
+  { date: "2026-10-05", hours: 4, has_open_session: false, has_output: true },
+  { date: "2026-10-06", hours: 4, has_open_session: false, has_output: false },
+  { date: "2026-10-07", hours: 2, has_open_session: true, has_output: true },
 ];
-const rows = days.map((d) => ({ ...d, is_credited: d.has_approved_output && !d.has_open_session }));
+const rows = days.map((d) => ({ ...d, is_credited: d.has_output && !d.has_open_session }));
 const recorded = rows.reduce((sum, r) => sum + (r.has_open_session ? 0 : r.hours), 0);
 const credited = rows.reduce((sum, r) => sum + (r.is_credited ? r.hours : 0), 0);
 const incompleteCount = rows.filter((r) => r.has_open_session).length;
 const daysWithRows = new Set(rows.map((r) => r.date));
 const missing = elapsed.filter((key) => !daysWithRows.has(key)).length;
 ok("recorded hours exclude the incomplete day", recorded === 8, `got ${recorded}`);
-ok("credited hours only count the approved, closed day", credited === 4, `got ${credited}`);
+ok("credited hours only count the submitted, closed day", credited === 4, `got ${credited}`);
 ok("incomplete records counted separately", incompleteCount === 1);
 ok("missing = elapsed working days with no row", missing === 6, `got ${missing}`);
 ok(

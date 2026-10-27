@@ -9,7 +9,7 @@ import type { OutputCounts } from "@/components/employee/outputs/my-outputs-ui";
 
 export const metadata = {
   title: "My Outputs — Daong",
-  description: "All your submitted work, organized in one place.",
+  description: "Manage and track all your submitted outputs in one place.",
 };
 
 /**

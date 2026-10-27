@@ -10,6 +10,8 @@ export interface ModalShellProps {
   maxWidthClass?: string;
   ariaLabelledBy?: string;
   className?: string;
+  /** Optional replacement for the default dimmed/blurred backdrop classes. */
+  backdropClassName?: string;
   closeOnBackdropClick?: boolean;
 }
 
@@ -42,6 +44,7 @@ export default function ModalShell({
   maxWidthClass = "max-w-lg",
   ariaLabelledBy,
   className = "",
+  backdropClassName,
   closeOnBackdropClick = true,
 }: ModalShellProps) {
   const [mounted, setMounted] = useState(false);
@@ -68,7 +71,9 @@ export default function ModalShell({
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-hidden">
       {/* Dimmed & Blurred Backdrop matching reference screenshot */}
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm animate-backdrop-in"
+        className={`fixed inset-0 animate-backdrop-in ${
+          backdropClassName ?? "bg-slate-900/40 backdrop-blur-sm"
+        }`}
         onClick={closeOnBackdropClick ? onClose : undefined}
         aria-hidden="true"
       />

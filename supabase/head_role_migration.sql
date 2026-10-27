@@ -233,7 +233,15 @@ begin
       from generate_series(v_month, (v_next_month - interval '1 day')::date, interval '1 day') d
      where extract(isodow from d) < 6
   ),
+  submitted as (
+    -- Any submitted output credits the day, whatever its review status.
+    select distinct employee_id, date
+      from public.outputs
+     where date >= v_month
+       and date < v_next_month
+  ),
   approved as (
+    -- Used only to label the day "output approved" in the drawer.
     select distinct employee_id, date
       from public.outputs
      where status = 'done'
@@ -263,9 +271,13 @@ begin
       ad.has_open_session,
       ad.first_in,
       ad.last_out,
+      (s.employee_id is not null) as has_output,
       (a.employee_id is not null) as has_approved_output,
       coalesce(os.output_status, 'none') as output_status
     from public.attendance_days ad
+    left join submitted s
+      on s.employee_id = ad.employee_id
+     and s.date = ad.date
     left join approved a
       on a.employee_id = ad.employee_id
      and a.date = ad.date
@@ -284,8 +296,9 @@ begin
           'hours', hours,
           'session_count', session_count,
           'has_open_session', has_open_session,
+          'has_output', has_output,
           'has_approved_output', has_approved_output,
-          'is_credited', has_approved_output and not has_open_session,
+          'is_credited', has_output and not has_open_session,
           'output_status', output_status,
           'first_in', first_in,
           'last_out', last_out
@@ -298,7 +311,7 @@ begin
     select
       md.employee_id,
       round(sum(case when not md.has_open_session then md.hours else 0 end)::numeric, 2) as recorded_hours,
-      round(sum(case when md.has_approved_output and not md.has_open_session then md.hours else 0 end)::numeric, 2) as credited_hours,
+      round(sum(case when md.has_output and not md.has_open_session then md.hours else 0 end)::numeric, 2) as credited_hours,
       count(*) filter (where md.has_open_session)::integer as incomplete_records,
       count(distinct md.date) filter (where not md.has_open_session and extract(isodow from md.date) < 6)::integer as days_recorded,
       count(distinct md.date) filter (where extract(isodow from md.date) < 6)::integer as working_days_with_rows

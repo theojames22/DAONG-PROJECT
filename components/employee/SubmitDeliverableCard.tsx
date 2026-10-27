@@ -27,6 +27,7 @@ import {
   validateSubmission,
   type SubmissionType,
 } from "@/lib/outputs";
+import styles from "@/app/employee/outputs/my-outputs.module.css";
 import WrittenOutputEditor from "./WrittenOutputEditor";
 
 interface SubmitDeliverableCardProps {
@@ -39,6 +40,13 @@ interface SubmitDeliverableCardProps {
    * dashboard card is unchanged.
    */
   embedded?: boolean;
+  /**
+   * Visual variant only. "workspace" opts into the My Outputs modal tokens;
+   * the submission logic, validation and endpoints are identical.
+   */
+  appearance?: "default" | "workspace";
+  /** Optional cancel action rendered beside the submit button in the modal. */
+  onCancel?: () => void;
 }
 
 type TabKey = SubmissionType;
@@ -103,9 +111,13 @@ export default function SubmitDeliverableCard({
   clockedIn,
   onSubmitted,
   embedded = false,
+  appearance = "default",
+  onCancel,
 }: SubmitDeliverableCardProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
+  const workspace = appearance === "workspace";
 
   const [activeTab, setActiveTab] = useState<TabKey>("written");
   /**
@@ -133,6 +145,14 @@ export default function SubmitDeliverableCard({
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  // In the workspace modal, a validation/server error can be above the current
+  // scroll position. Bring the banner into view without changing the shared
+  // dashboard form's behaviour.
+  useEffect(() => {
+    if (!workspace || statusMessage?.tone !== "error") return;
+    statusRef.current?.scrollIntoView({ block: "nearest" });
+  }, [statusMessage, workspace]);
 
   function clearFile() {
     setFile(null);
@@ -365,11 +385,14 @@ export default function SubmitDeliverableCard({
     <div
       className={
         embedded
-          ? "flex flex-col"
+          ? `flex flex-col ${workspace ? styles.workspaceForm : ""}`
           : "flex h-full flex-col justify-between rounded-[20px] border border-staff-border bg-white p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,27,61,.04),0_10px_30px_rgba(37,99,235,.06)] enter-up enter-d3"
       }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form
+        onSubmit={handleSubmit}
+        className={`flex flex-col ${workspace ? "gap-5" : "gap-4"}`}
+      >
         {/* Card Title & Description — the modal supplies its own header. */}
         {!embedded && (
           <div>
@@ -405,6 +428,7 @@ export default function SubmitDeliverableCard({
         {/* Status Message / Inline Error Banner */}
         {statusMessage && (
           <div
+            ref={statusRef}
             role={statusMessage.tone === "error" ? "alert" : "status"}
             className={`flex items-start gap-2.5 rounded-xl p-3 text-xs font-medium border ${
               statusMessage.tone === "success"
@@ -446,7 +470,11 @@ export default function SubmitDeliverableCard({
 
         {/* Segmented control for the four submission types */}
         <div
-          className="grid grid-cols-2 gap-1 rounded-xl border border-staff-border bg-slate-100 p-1 sm:grid-cols-4"
+          className={
+            workspace
+              ? "grid grid-cols-2 gap-2 sm:grid-cols-4"
+              : "grid grid-cols-2 gap-1 rounded-xl border border-staff-border bg-slate-100 p-1 sm:grid-cols-4"
+          }
           role="tablist"
           aria-label="Submission type"
         >
@@ -458,19 +486,33 @@ export default function SubmitDeliverableCard({
               aria-selected={activeTab === key}
               title={hint}
               onClick={() => switchTab(key)}
-              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-all ${
-                activeTab === key
-                  ? "bg-white text-staff-blue-ink shadow-sm"
-                  : "text-staff-body hover:text-staff-ink"
-              }`}
+              className={
+                workspace
+                  ? `${styles.choiceChip} inline-flex items-center justify-center gap-2 ${
+                      activeTab === key ? styles.choiceChipOn : ""
+                    }`
+                  : `flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-all ${
+                      activeTab === key
+                        ? "bg-white text-staff-blue-ink shadow-sm"
+                        : "text-staff-body hover:text-staff-ink"
+                    }`
+              }
             >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <Icon
+                className={workspace ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"}
+              />
               <span>{label}</span>
             </button>
           ))}
         </div>
 
-        <p className="-mt-1 text-[10.5px] font-medium text-staff-body">
+        <p
+          className={
+            workspace
+              ? `${styles.hint} -mt-2`
+              : "-mt-1 text-[10.5px] font-medium text-staff-body"
+          }
+        >
           {activeTabHint}
           {activeTab === "written"
             ? " · nothing is uploaded or stored as a file."
@@ -481,7 +523,14 @@ export default function SubmitDeliverableCard({
         <div className={`flex flex-col gap-3.5 transition-opacity ${!clockedIn ? "opacity-80 pointer-events-none" : ""}`}>
           {/* Field 1: Deliverable Name */}
           <div>
-            <label htmlFor="deliverable-title" className="block text-xs font-bold text-staff-ink mb-1.5">
+            <label
+              htmlFor="deliverable-title"
+              className={
+                workspace
+                  ? styles.fieldLabel
+                  : "block text-xs font-bold text-staff-ink mb-1.5"
+              }
+            >
               Deliverable name
             </label>
             <div className="relative">
@@ -493,7 +542,11 @@ export default function SubmitDeliverableCard({
                 disabled={!clockedIn}
                 maxLength={TITLE_MAX}
                 placeholder="e.g. Sprint 14 UI Components & Feature Staging"
-                className="w-full rounded-xl border border-staff-border bg-white px-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                className={
+                  workspace
+                    ? `${styles.input} ${!clockedIn ? "!pr-10" : ""}`
+                    : "w-full rounded-xl border border-staff-border bg-white px-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                }
               />
               {!clockedIn && (
                 <Lock className="absolute right-3 top-3 h-3.5 w-3.5 text-staff-muted" />
@@ -507,13 +560,21 @@ export default function SubmitDeliverableCard({
               value={writtenContent}
               onChange={setWrittenContent}
               disabled={!clockedIn}
+              appearance={workspace ? "workspace" : "default"}
             />
           )}
 
           {activeTab === "link" && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label htmlFor="submission-link" className="block text-xs font-bold text-staff-ink">
+                <label
+                  htmlFor="submission-link"
+                  className={
+                    workspace
+                      ? styles.fieldLabel
+                      : "block text-xs font-bold text-staff-ink"
+                  }
+                >
                   Resource link
                 </label>
                 <button
@@ -537,7 +598,11 @@ export default function SubmitDeliverableCard({
                   onChange={(e) => setResourceLink(e.target.value)}
                   disabled={!clockedIn}
                   placeholder="https://figma.com/file/... or https://github.com/..."
-                  className="w-full rounded-xl border border-staff-border bg-white pl-9 pr-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                  className={
+                    workspace
+                      ? `${styles.input} !pl-10 ${!clockedIn ? "!pr-10" : ""}`
+                      : "w-full rounded-xl border border-staff-border bg-white pl-9 pr-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                  }
                 />
                 {!clockedIn && (
                   <Lock className="absolute right-3 top-3 h-3.5 w-3.5 text-staff-muted" />
@@ -548,7 +613,13 @@ export default function SubmitDeliverableCard({
 
           {(activeTab === "file" || activeTab === "image") && (
             <div>
-              <label className="block text-xs font-bold text-staff-ink mb-1.5">
+              <label
+                className={
+                  workspace
+                    ? styles.fieldLabel
+                    : "block text-xs font-bold text-staff-ink mb-1.5"
+                }
+              >
                 {activeTab === "image" ? "Screenshot upload" : "Document / file upload"}
               </label>
 
@@ -560,11 +631,17 @@ export default function SubmitDeliverableCard({
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
                 onClick={() => clockedIn && fileInputRef.current?.click()}
-                className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all ${
-                  isDragging
-                    ? "border-blue-500 bg-staff-soft"
-                    : "border-staff-border bg-slate-50/50 hover:border-blue-400 hover:bg-staff-soft"
-                }`}
+                className={
+                  workspace
+                    ? `${styles.uploadZone} ${
+                        isDragging ? styles.uploadZoneActive : ""
+                      }`
+                    : `cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all ${
+                        isDragging
+                          ? "border-blue-500 bg-staff-soft"
+                          : "border-staff-border bg-slate-50/50 hover:border-blue-400 hover:bg-staff-soft"
+                      }`
+                }
               >
                 {file ? (
                   <div className="flex flex-col items-center gap-2">
@@ -618,7 +695,14 @@ export default function SubmitDeliverableCard({
 
           {/* Field 3: Notes / summary for the supervisor */}
           <div>
-            <label htmlFor="submission-notes" className="block text-xs font-bold text-staff-ink mb-1.5">
+            <label
+              htmlFor="submission-notes"
+              className={
+                workspace
+                  ? styles.fieldLabel
+                  : "block text-xs font-bold text-staff-ink mb-1.5"
+              }
+            >
               {activeTab === "written" ? "Summary" : "Notes for your supervisor"}{" "}
               <span className="font-normal text-staff-body">(optional)</span>
             </label>
@@ -634,7 +718,11 @@ export default function SubmitDeliverableCard({
                   ? "A short description of the task, what was completed, or what to check…"
                   : "Provide context, deliverables notes, or review guidance..."
               }
-              className="w-full rounded-xl border border-staff-border bg-white px-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all resize-none"
+              className={
+                workspace
+                  ? `${styles.input} ${styles.textarea}`
+                  : "w-full rounded-xl border border-staff-border bg-white px-3.5 py-2.5 text-xs font-medium text-staff-ink placeholder:text-staff-muted focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all resize-none"
+              }
             />
           </div>
 
@@ -677,8 +765,52 @@ export default function SubmitDeliverableCard({
         )}
 
         {/* Action Button: Disabled when locked, Blue when unlocked */}
-        <div className="pt-2">
-          {!clockedIn ? (
+        <div
+          className={
+            workspace
+              ? "flex flex-col-reverse gap-2.5 pt-2 sm:flex-row sm:items-center sm:justify-end"
+              : "pt-2"
+          }
+        >
+          {workspace ? (
+            <>
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={isSubmitting}
+                  className={styles.ghostBtn}
+                >
+                  Cancel
+                </button>
+              )}
+              {!clockedIn ? (
+                <button type="button" disabled className={styles.primaryBtn}>
+                  <Lock className="h-4 w-4" />
+                  <span>Clock in to submit</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={styles.primaryBtn}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>
+                        {isUpload && progress !== null && progress < 100
+                          ? `Uploading… ${progress}%`
+                          : "Saving submission…"}
+                      </span>
+                    </>
+                  ) : (
+                    <span>Submit for review</span>
+                  )}
+                </button>
+              )}
+            </>
+          ) : !clockedIn ? (
             <button
               type="button"
               disabled
@@ -709,7 +841,13 @@ export default function SubmitDeliverableCard({
           )}
         </div>
 
-        <p className="text-[10.5px] text-center text-staff-body pt-1">
+        <p
+          className={
+            workspace
+              ? `${styles.hint} pt-1 text-center`
+              : "text-[10.5px] text-center text-staff-body pt-1"
+          }
+        >
           Submissions are timestamped when sent.
         </p>
       </form>

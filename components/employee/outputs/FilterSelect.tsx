@@ -23,7 +23,7 @@ export interface FilterSelectProps {
  * A small, page-scoped listbox.
  *
  * A native <select> cannot be styled or animated, so this keeps the design
- * language (pill, soft border, blue focus glow, fade-in menu) while staying
+ * language (soft border, blue focus glow, fade-in menu) while staying
  * keyboard-complete: Arrow Up/Down, Home/End, Enter/Space, Escape, Tab, and
  * focus returns to the trigger on close.
  */
@@ -140,19 +140,20 @@ export default function FilterSelect({
             openMenu();
           }
         }}
-        className={`${styles.field} inline-flex w-full items-center justify-between gap-2 rounded-xl border border-staff-border bg-white px-3 py-2 text-[11.5px] font-semibold text-staff-ink`}
+        className={styles.selectTrigger}
       >
         <span className="truncate">{selectedLabel}</span>
         <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-staff-muted transition-transform duration-200 ${
+          className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
             open ? "rotate-180" : ""
           }`}
+          style={{ color: "var(--mo-muted)" }}
           aria-hidden="true"
         />
       </button>
 
       {open && (
-        <div className="animate-dropdown-in absolute left-0 top-full z-40 mt-2 w-full overflow-hidden rounded-xl border border-staff-border bg-white p-1 shadow-xl">
+        <div className={`${styles.selectMenu} animate-dropdown-in`}>
           <ul
             id={listId}
             role="listbox"
@@ -173,10 +174,8 @@ export default function FilterSelect({
                     tabIndex={-1}
                     onClick={() => choose(index)}
                     onKeyDown={(event) => handleOptionKey(event, index)}
-                    className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[11.5px] font-semibold transition-colors duration-150 ${
-                      selected
-                        ? "bg-staff-soft text-staff-blue-ink"
-                        : "text-staff-body hover:bg-staff-chip hover:text-staff-ink"
+                    className={`${styles.selectOption} ${
+                      selected ? styles.selectOptionOn : ""
                     }`}
                   >
                     <span className="truncate">{option.label}</span>

@@ -26,8 +26,11 @@ import { toDateKey } from "@/lib/attendance";
 import { formatFileSize, isSafeHttpUrl } from "@/lib/outputs";
 import type { AttachmentType, Output, OutputStatus } from "@/lib/types";
 
-/** Cards per page in both views. Small enough to stay scannable on mobile. */
-export const PAGE_SIZE = 9;
+/**
+ * Cards per page in both views. Eight fills the four-column desktop grid and
+ * the two-column tablet grid exactly, and stays scannable on mobile.
+ */
+export const PAGE_SIZE = 8;
 
 export type ViewMode = "card" | "list";
 export type SortMode = "newest" | "oldest";
@@ -47,42 +50,63 @@ export interface OutputCounts {
 
 export interface StatusMeta {
   label: string;
-  /** Pale background + readable text — never colour alone. */
-  badge: string;
-  dot: string;
-  icon: typeof Clock3;
-  /** One-line explanation used on the summary cards. */
+  /** One-line explanation used on the summary tiles and cards. */
   summary: string;
+  icon: typeof Clock3;
+  /** All colour values are CSS variables so the same token re-themes in dark mode. */
+  badgeBg: string;
+  badgeFg: string;
+  dot: string;
+  bar: string;
+  /** The drawer's status hero. White text sits on every one of these. */
+  hero: string;
+  tone: "pending" | "checking" | "approved" | "rejected";
 }
 
 export const STATUS_META: Record<OutputStatus, StatusMeta> = {
   pending: {
     label: "Pending",
-    badge: "bg-staff-warning-soft text-staff-warning",
-    dot: "bg-amber-500",
-    icon: Clock3,
     summary: "Awaiting review",
+    icon: Clock3,
+    badgeBg: "var(--mo-warning-soft)",
+    badgeFg: "var(--mo-warning-ink)",
+    dot: "var(--mo-warning)",
+    bar: "var(--mo-warning)",
+    hero: "linear-gradient(135deg, #8a5200, #c27406)",
+    tone: "pending",
   },
   checking: {
     label: "Checking",
-    badge: "bg-staff-soft text-staff-blue-ink",
-    dot: "bg-blue-500",
-    icon: Eye,
     summary: "Being reviewed now",
+    icon: Eye,
+    badgeBg: "var(--mo-blue-soft)",
+    badgeFg: "var(--mo-blue-ink)",
+    dot: "var(--mo-blue)",
+    bar: "var(--mo-blue)",
+    hero: "linear-gradient(135deg, #1d4fd8, #4c8bff)",
+    tone: "checking",
   },
   done: {
     label: "Approved",
-    badge: "bg-staff-success-soft text-staff-success",
-    dot: "bg-emerald-500",
-    icon: CheckCircle2,
     summary: "Approved work",
+    icon: CheckCircle2,
+    badgeBg: "var(--mo-success-soft)",
+    badgeFg: "var(--mo-success-ink)",
+    dot: "var(--mo-success)",
+    bar: "var(--mo-success)",
+    hero: "linear-gradient(135deg, #0b5f36, #1f9d5b)",
+    tone: "approved",
   },
   rejected: {
     label: "Rejected",
-    badge: "bg-staff-danger-soft text-staff-danger",
-    dot: "bg-red-500",
-    icon: XCircle,
     summary: "Changes requested",
+    icon: XCircle,
+    badgeBg: "var(--mo-danger-soft)",
+    badgeFg: "var(--mo-danger-ink)",
+    dot: "var(--mo-danger)",
+    bar: "var(--mo-danger)",
+    hero: "linear-gradient(135deg, #8e1b1b, #d64545)",
+    tone: "rejected",
   },
 };
 
@@ -91,6 +115,10 @@ export interface TypeMeta {
   icon: typeof FileText;
   /** Icon container tint. Type is communicated by the icon, not by colour alone. */
   tile: string;
+  /** Preview area tint for the grid card. */
+  mediaBg: string;
+  thumbBg: string;
+  thumbFg: string;
 }
 
 export const TYPE_META: Record<AttachmentType, TypeMeta> = {
@@ -98,14 +126,34 @@ export const TYPE_META: Record<AttachmentType, TypeMeta> = {
     label: "Written Output",
     icon: PenLine,
     tile: "bg-staff-soft text-staff-blue-ink",
+    mediaBg: "linear-gradient(160deg, var(--mo-soft-2), var(--mo-card))",
+    thumbBg: "var(--mo-blue-soft)",
+    thumbFg: "var(--mo-blue-ink)",
   },
-  file: { label: "File", icon: FileText, tile: "bg-staff-chip text-staff-body" },
+  file: {
+    label: "File",
+    icon: FileText,
+    tile: "bg-staff-chip text-staff-body",
+    mediaBg: "linear-gradient(135deg, var(--mo-soft), var(--mo-soft-2))",
+    thumbBg: "var(--mo-blue-soft)",
+    thumbFg: "var(--mo-blue-ink)",
+  },
   image: {
     label: "Image",
     icon: ImageIcon,
     tile: "bg-staff-chip text-staff-body",
+    mediaBg: "linear-gradient(135deg, var(--mo-blue-soft), var(--mo-soft-2))",
+    thumbBg: "var(--mo-blue-soft)",
+    thumbFg: "var(--mo-blue-ink)",
   },
-  link: { label: "Link", icon: LinkIcon, tile: "bg-staff-chip text-staff-body" },
+  link: {
+    label: "Link",
+    icon: LinkIcon,
+    tile: "bg-staff-chip text-staff-body",
+    mediaBg: "linear-gradient(135deg, var(--mo-blue-soft), var(--mo-soft-2))",
+    thumbBg: "var(--mo-blue-soft)",
+    thumbFg: "var(--mo-blue-ink)",
+  },
 };
 
 export const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
@@ -147,6 +195,96 @@ export function countOutputs(rows: Pick<Output, "status">[]): OutputCounts {
   }
 
   return counts;
+}
+
+/** Submissions that have reached a final decision. */
+export function reviewedCount(counts: OutputCounts): number {
+  return counts.approved + counts.rejected;
+}
+
+/**
+ * Approved share of decided submissions. Null when nothing has been decided,
+ * so the caller can say "Nothing reviewed yet" instead of inventing 0%.
+ */
+export function approvalRate(counts: OutputCounts): number | null {
+  const reviewed = reviewedCount(counts);
+  if (reviewed === 0) return null;
+  return Math.round((counts.approved / reviewed) * 100);
+}
+
+/** Newest real submission timestamp (ms), or null when no row has one. */
+export function latestSubmissionAt(
+  rows: Pick<Output, "created_at" | "date">[]
+): number | null {
+  let latest: number | null = null;
+  for (const row of rows) {
+    const source = row.created_at || row.date;
+    if (!source) continue;
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(source)
+      ? new Date(`${source}T00:00:00`).getTime()
+      : Date.parse(source);
+    if (Number.isNaN(parsed)) continue;
+    if (latest === null || parsed > latest) latest = parsed;
+  }
+  return latest;
+}
+
+/** "2 h ago" / "3 d ago", rounded the same way the reference does. */
+export function formatRelativeTime(ms: number, now: number): string {
+  const minutes = Math.max(1, Math.round((now - ms) / 60000));
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} d ago`;
+}
+
+/**
+ * Review turnaround from the real submitted/reviewed timestamps.
+ * Returns null when either value is missing — never a guessed duration.
+ */
+export function formatTurnaround(
+  submitted?: string | null,
+  reviewed?: string | null
+): string | null {
+  if (!submitted || !reviewed) return null;
+  const start = Date.parse(submitted);
+  const end = Date.parse(reviewed);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return null;
+
+  const minutes = Math.round((end - start) / 60000);
+  if (minutes < 60) return `${Math.max(1, minutes)} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours < 24) return rest ? `${hours}h ${rest}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  const remainder = hours % 24;
+  return remainder ? `${days}d ${remainder}h` : `${days}d`;
+}
+
+/** Uppercase file suffix for the document tile — "FILE" when none exists. */
+export function fileExtension(name?: string | null): string {
+  const value = (name ?? "").trim();
+  const dot = value.lastIndexOf(".");
+  if (dot <= 0 || dot === value.length - 1) return "FILE";
+  return value
+    .slice(dot + 1)
+    .toUpperCase()
+    .slice(0, 4);
+}
+
+export function isDecided(status: OutputStatus): boolean {
+  return status === "done" || status === "rejected";
+}
+
+/** "Oct 1" for a filter chip, parsed as a local calendar day. */
+export function formatChipDate(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 /**

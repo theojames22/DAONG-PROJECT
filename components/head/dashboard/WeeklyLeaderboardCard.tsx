@@ -86,7 +86,7 @@ function rankBadgeClasses(rank: number): string {
  *
  * Ranks the top three Staff by CREDITED hours for the selected Monday–Sunday
  * week — the canonical employee_week_hours figure (attendance hours on days
- * that carry an approved output and a closed clock), never raw logged time.
+ * that carry a submitted output and a closed clock), never raw logged time.
  * Heads are excluded upstream because the page only ever passes Staff.
  *
  * The card owns the only week selector: the `?week=` query param drives the

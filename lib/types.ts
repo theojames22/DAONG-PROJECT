@@ -12,7 +12,7 @@ export interface Profile {
   full_name: string | null;
   position: string | null;
   role: Role;
-  /** Weekly requirement in hours, e.g. 40. Credits come from approved outputs. */
+  /** Weekly requirement in hours, e.g. 40. Credits come from days with a submitted output. */
   required_weekly_hours: number;
   email?: string | null;
   profile_picture_url?: string | null;
@@ -39,6 +39,9 @@ export interface AttendanceDay {
 
 /** A day of attendance plus whether it is creditable (attendance_day_status view). */
 export interface AttendanceDayStatus extends AttendanceDay {
+  /** True when any output was submitted for this day, whatever its review status. */
+  has_output?: boolean;
+  /** True only when at least one output on this day was approved. */
   has_approved_output: boolean;
   is_credited: boolean;
 }

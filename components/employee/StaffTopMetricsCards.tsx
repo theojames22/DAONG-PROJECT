@@ -258,10 +258,10 @@ export default function StaffTopMetricsCards({
           </div>
         </div>
 
-        {/* Short info line as requested: "Hours count only on days with an approved output." */}
+        {/* Short info line: "Hours count on days with a submitted output." */}
         <div className="border-t border-staff-border pt-2">
           <p className="text-[11px] leading-tight text-staff-body">
-            Hours count only on days with an approved output.
+            Hours count on days with a submitted output.
           </p>
         </div>
       </div>

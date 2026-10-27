@@ -100,7 +100,7 @@ export async function GET(request: Request) {
       .lte("date", weekEnd)
       .order("date", { ascending: true }),
 
-    // Credited hours: attendance_days joined to approved outputs, rolled
+    // Credited hours: attendance_days joined to submitted outputs, rolled
     // up per week. The week_start this view uses is the Monday of the
     // week, matching getWeekRange().
     supabase
@@ -144,20 +144,20 @@ export async function GET(request: Request) {
       : weekHours?.attendance_hours ?? totalHours(weekSessions);
 
   // 6. Credited hours — the separate value that counts toward the weekly
-  //    requirement. Only days with an approved output contribute, so a
-  //    week of full attendance with no approved output credits 0/40.
-  //    Derived, never incremented, so approvals can't double count.
+  //    requirement. A day is credited as soon as any output has been
+  //    submitted for it; the review status (pending, approved, rejected)
+  //    does not matter. So a week of full attendance with no submission
+  //    credits 0/40. Derived, never incremented, so decisions can't
+  //    double count.
   const requiredWeeklyHours = profile?.required_weekly_hours ?? 40;
 
   // The view is the source of truth. If it isn't reachable yet (migration
   // not applied), derive the identical number from the attendance days and
   // outputs we already fetched, so a partially-migrated database still
   // reports the truth instead of a flat zero.
-  const approvedOutputDates = new Set(
-    outputs.filter((o) => o.status === "done").map((o) => o.date)
-  );
+  const submittedOutputDates = new Set(outputs.map((o) => o.date));
   const creditedHoursFallback = weekAttendance
-    .filter((d) => approvedOutputDates.has(d.date) && !d.has_open_session)
+    .filter((d) => submittedOutputDates.has(d.date) && !d.has_open_session)
     .reduce((sum, d) => sum + Number(d.hours), 0);
 
   const credited = creditedProgress(

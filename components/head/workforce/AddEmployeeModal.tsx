@@ -332,7 +332,7 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
               </div>
             </div>
             <p className="mt-1 text-[11.5px] leading-relaxed text-slate-500">
-              Attendance hours are always recorded, but only hours on days with an approved output are credited toward this requirement.
+              Attendance hours are always recorded, but only hours on days with a submitted output are credited toward this requirement.
             </p>
             <p className="text-[11.5px] leading-relaxed text-slate-500 -mt-1">
               Set it to 0 for a Head, who only manages the team.

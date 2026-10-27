@@ -145,6 +145,8 @@ export async function GET(request: Request) {
       hours: Number(entry.hours ?? 0),
       session_count: Number(entry.session_count ?? 0),
       has_open_session: Boolean(entry.has_open_session),
+      has_output:
+        entry.has_output === undefined ? undefined : Boolean(entry.has_output),
       has_approved_output: Boolean(entry.has_approved_output),
       is_credited: Boolean(entry.is_credited),
       output_status: (entry.output_status as OutputState) ?? "none",

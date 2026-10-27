@@ -4,7 +4,7 @@
  *
  * Everything is computed on the server from real rows:
  *   profiles (weekly requirement) + attendance_days / attendance_day_status
- *   + outputs (approved = 'done').
+ *   + outputs (any submission credits the day; approved = 'done').
  *
  * The current month is provisional (live, prorated to elapsed working
  * days). A closed month is finalized on demand into a frozen snapshot
@@ -113,7 +113,7 @@ export async function fetchMonthDayRows(
   if (employeeIds.length === 0) return [];
 
   // The punch timestamps come from attendance_days (where they live);
-  // the approved-output / credited flags come from the
+  // the submitted-output / credited flags come from the
   // attendance_day_status view. Merging them here keeps the reports
   // working regardless of which columns a given view revision exposes.
   const [{ data: daysData, error: daysError }, { data: statusData }] =

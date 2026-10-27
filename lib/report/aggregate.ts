@@ -9,8 +9,8 @@
  *   recorded hours      completed sessions only; an OPEN session
  *                       (no time-out) is incomplete and contributes
  *                       no hours until corrected
- *   credited hours      recorded hours on a day whose output status
- *                       is 'done' (approved) — multiple approved
+ *   credited hours      recorded hours on a day with any submitted output
+ *                       (pending, approved or rejected) — multiple
  *                       outputs on a day never multiply the hours
  *   missing days        elapsed working days with no attendance row
  *                       (an incomplete row is NOT missing)
@@ -38,6 +38,9 @@ export interface ReportDayRow {
   hours: number;
   session_count: number;
   has_open_session: boolean;
+  /** True when any output exists for the day, whatever its review status. */
+  has_output?: boolean;
+  /** True only when an approved ('done') output exists for the day. */
   has_approved_output: boolean;
   is_credited: boolean;
   /** Per-day output state, used by the details drawer's output chips. */

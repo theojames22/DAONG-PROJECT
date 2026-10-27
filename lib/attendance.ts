@@ -74,15 +74,15 @@ export function formatWeekBadge(weekStart: string, weekEnd: string): string {
  * weekly requirement (profiles.required_weekly_hours).
  *
  * Attendance hours are recorded for every clock-in/clock-out, but a day's
- * hours are credited only when that day has an approved output. So the two
- * totals are tracked separately and hours alone never satisfy the
- * requirement.
+ * hours are credited as soon as that day has a submitted output — pending,
+ * approved or rejected alike. So the two totals are tracked separately and
+ * hours alone never satisfy the requirement.
  *
  * The value comes from the employee_week_hours view, which derives it from
- * attendance_days joined to approved outputs. Because it is derived
+ * attendance_days joined to submitted outputs. Because it is derived
  * rather than incremented, an output being reviewed, approved, rejected or
  * updated can never double count — each day's hours are summed at most
- * once, and re-approving merely re-satisfies the join.
+ * once, and a decision merely re-satisfies the join.
  */
 export function creditedProgress(creditedHours: number, requiredHours: number) {
   const target = requiredHours > 0 ? requiredHours : 0;

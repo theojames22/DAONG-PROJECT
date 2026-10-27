@@ -87,7 +87,7 @@ export default async function HeadPage({
       )
       .order("created_at", { ascending: false }),
     // Credited hours for the selected week — the canonical
-    // attendance_days ⋈ approved-outputs figure, never raw logged time.
+    // attendance_days ⋈ submitted-outputs figure, never raw logged time.
     supabase
       .from("employee_week_hours")
       .select("employee_id, week_start, credited_hours, attendance_hours")
@@ -196,7 +196,7 @@ export default async function HeadPage({
 
   // ---- Weekly leaderboard (selected week, Staff only) ----
   // Ranked by CREDITED hours from employee_week_hours — attendance hours on
-  // days that carry an approved output — never raw logged time. Heads never
+  // days that carry a submitted output — never raw logged time. Heads never
   // appear because `employees` is already scoped to role='staff'.
   const leaderboardEntries: LeaderboardEntry[] = employees
     .map((e) => ({
@@ -208,8 +208,8 @@ export default async function HeadPage({
       requiredHours: e.required_weekly_hours ?? 0,
     }))
     // Only Staff with eligible credited hours are ranked — a recorded day
-    // that never earned credit (no approved output) is not a credited hour,
-    // and zero-credit Staff are omitted rather than shown as placeholders.
+    // with no submission is not a credited hour, and zero-credit Staff are
+    // omitted rather than shown as placeholders.
     .filter((entry) => entry.creditedHours > 0)
     .sort((a, b) => {
       if (b.creditedHours !== a.creditedHours) {

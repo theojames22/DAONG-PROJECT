@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { safeFileName } from "@/lib/file-name";
+import { isInlineImageMime, safeContentType } from "@/lib/outputs";
 import {
+  isSafeStoragePath,
   PROJECT_FILES_BUCKET,
   storagePathFromUrl,
 } from "@/lib/storage";
@@ -27,9 +29,10 @@ function notFound() {
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!UUID_RE.test(params.id)) return notFound();
+  const { id } = await params;
+  if (!UUID_RE.test(id)) return notFound();
 
   const supabase = await createClient();
   const {
@@ -43,9 +46,9 @@ export async function GET(
   const { data: output, error } = await supabase
     .from("outputs")
     .select(
-      "id, attachment_type, attachment_url, storage_path, file_name, file_mime_type"
+      "id, employee_id, attachment_type, attachment_url, storage_path, file_name, file_mime_type"
     )
-    .eq("id", params.id)
+    .eq("id", id)
     .maybeSingle();
 
   if (error || !output) return notFound();
@@ -57,7 +60,18 @@ export async function GET(
     (output.storage_path as string | null) ||
     storagePathFromUrl(output.attachment_url as string | null);
 
-  if (!objectPath) return notFound();
+  if (!isSafeStoragePath(objectPath)) return notFound();
+
+  // A Staff owner may only read objects under their own uid folder. Legacy
+  // rows could have been inserted with an arbitrary storage path before the
+  // server-only write path existed; the service-role download must not turn
+  // that into cross-user file access. Heads keep their existing access.
+  if (
+    output.employee_id === user.id &&
+    !objectPath.startsWith(`${user.id}/`)
+  ) {
+    return notFound();
+  }
 
   const admin = createAdminClient();
   const { data: blob, error: downloadError } = await admin.storage
@@ -68,7 +82,10 @@ export async function GET(
 
   const url = new URL(request.url);
   const forceDownload = url.searchParams.get("download") === "1";
-  const isImage = output.attachment_type === "image";
+  const storedMime =
+    (output.file_mime_type as string | null) || blob.type || null;
+  const canInline =
+    output.attachment_type === "image" && isInlineImageMime(storedMime);
   const filename = safeFileName(
     (output.file_name as string | null) || objectPath.split("/").pop() || "attachment",
     "attachment"
@@ -77,13 +94,10 @@ export async function GET(
   return new NextResponse(blob, {
     status: 200,
     headers: {
-      "Content-Type":
-        (output.file_mime_type as string | null) ||
-        blob.type ||
-        "application/octet-stream",
+      "Content-Type": safeContentType(storedMime),
       "Content-Length": String(blob.size),
       "Content-Disposition": `${
-        isImage && !forceDownload ? "inline" : "attachment"
+        canInline && !forceDownload ? "inline" : "attachment"
       }; filename="${filename.replace(/"/g, "")}"`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",

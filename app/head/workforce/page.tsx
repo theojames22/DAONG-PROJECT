@@ -35,7 +35,7 @@ type OutputWithReviewer = Output & {
 export default async function WorkforcePage({
   searchParams,
 }: {
-  searchParams: { view?: string; date?: string };
+  searchParams: Promise<{ view?: string | string[]; date?: string | string[] }>;
 }) {
   let profile;
   let user;
@@ -54,15 +54,20 @@ export default async function WorkforcePage({
     redirect("/employee");
   }
 
-  const view: "card" | "list" = searchParams.view === "list" ? "list" : "card";
-
   const supabase = await createClient();
+  const resolvedSearchParams = await searchParams;
+  const viewParam = Array.isArray(resolvedSearchParams.view)
+    ? resolvedSearchParams.view[0]
+    : resolvedSearchParams.view;
+  const dateParam = Array.isArray(resolvedSearchParams.date)
+    ? resolvedSearchParams.date[0]
+    : resolvedSearchParams.date;
+  const view: "card" | "list" = viewParam === "list" ? "list" : "card";
+
   const timezone = await getAppTimezone(supabase);
   const todayKey = dateKeyIn(timezone);
   const date =
-    searchParams.date && isValidDateKey(searchParams.date)
-      ? searchParams.date
-      : todayKey;
+    dateParam && isValidDateKey(dateParam) ? dateParam : todayKey;
 
   // Current week (for the leaderboard) and the selected date's week (for the
   // attendance table) — usually the same, fetched separately so a Head can

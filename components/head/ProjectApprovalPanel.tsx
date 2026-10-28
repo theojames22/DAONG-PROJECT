@@ -126,7 +126,6 @@ export default function ProjectApprovalPanel({
           status: outputStatus,
           reviewed_by: adminId,
           reviewer_notes: notes.trim() || null,
-          reviewed_at: new Date().toISOString(),
         })
         .eq("id", project.source_output_id);
     }

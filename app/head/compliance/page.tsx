@@ -15,7 +15,7 @@ import WeeklyCompliance from "@/components/head/compliance/WeeklyCompliance";
 export default async function CompliancePage({
   searchParams,
 }: {
-  searchParams: { week?: string | string[] };
+  searchParams: Promise<{ week?: string | string[] }>;
 }) {
   let profile;
   let user;
@@ -35,9 +35,10 @@ export default async function CompliancePage({
   }
 
   const supabase = await createClient();
-  const requestedWeek = Array.isArray(searchParams.week)
-    ? searchParams.week[0]
-    : searchParams.week;
+  const resolvedSearchParams = await searchParams;
+  const requestedWeek = Array.isArray(resolvedSearchParams.week)
+    ? resolvedSearchParams.week[0]
+    : resolvedSearchParams.week;
   const initial = await buildWeeklyCompliance(supabase, {
     week: requestedWeek ?? null,
   });

@@ -11,12 +11,13 @@ import {
 import { getAppTimezone } from "@/lib/report/queries";
 import { Session, Output, AttendanceDay, WeekHours } from "@/lib/types";
 
-function formatTime(iso: string) {
+function formatTime(iso: string, timeZone?: string) {
   try {
     return new Date(iso).toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
+      ...(timeZone ? { timeZone } : {}),
     });
   } catch {
     return iso;
@@ -201,8 +202,8 @@ export async function GET(request: Request) {
     return {
       id: s.id,
       sessionNumber: index + 1,
-      timeIn: formatTime(s.time_in),
-      timeOut: s.time_out ? formatTime(s.time_out) : "In Progress",
+      timeIn: formatTime(s.time_in, timezone),
+      timeOut: s.time_out ? formatTime(s.time_out, timezone) : "In Progress",
       duration: `${duration.toFixed(1)}h`,
       isOpen: !s.time_out,
       rawTimeIn: s.time_in,
@@ -241,9 +242,9 @@ export async function GET(request: Request) {
     let status: "verified" | "active" | "empty" = "empty";
 
     if (sessionsForDay.length > 0) {
-      const firstIn = formatTime(sessionsForDay[0].time_in);
+      const firstIn = formatTime(sessionsForDay[0].time_in, timezone);
       const lastOut = sessionsForDay[sessionsForDay.length - 1].time_out
-        ? formatTime(sessionsForDay[sessionsForDay.length - 1].time_out!)
+        ? formatTime(sessionsForDay[sessionsForDay.length - 1].time_out!, timezone)
         : null;
 
       if (hasOpen) {

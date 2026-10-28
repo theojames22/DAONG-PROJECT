@@ -305,7 +305,7 @@ export default function IdCardTab({
       </div>
 
       <p className="text-[11.5px] text-ink-subtle">
-        Show this card's QR to your Head when clocking in or out.
+        Show this card&apos;s QR to your Head when clocking in or out.
       </p>
     </div>
   );

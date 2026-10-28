@@ -26,6 +26,14 @@ interface SettingsModalProps {
 
 type Feedback = { type: "success" | "error"; text: string } | null;
 
+const ALLOWED_AVATAR_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+]);
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
 export default function SettingsModal({
   open,
   onClose,
@@ -55,6 +63,7 @@ export default function SettingsModal({
 
   // Email section state
   const [email, setEmail] = useState(userEmail ?? "");
+  const [emailPassword, setEmailPassword] = useState("");
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailFeedback, setEmailFeedback] = useState<Feedback>(null);
 
@@ -101,7 +110,19 @@ export default function SettingsModal({
     setAvatarUploading(true);
     setProfileFeedback(null);
     try {
-      const ext = file.name.split(".").pop() || "png";
+      if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
+        throw new Error("Choose a PNG, JPEG, WebP, or GIF image.");
+      }
+      if (file.size > MAX_AVATAR_BYTES) {
+        throw new Error("Profile pictures must be 5 MB or smaller.");
+      }
+
+      // Derive the extension from the validated MIME type, not the original
+      // filename, so a crafted name cannot add path segments to the object key.
+      const ext =
+        file.type === "image/jpeg"
+          ? "jpg"
+          : file.type.split("/")[1].replace(/[^a-z0-9]/gi, "") || "png";
       const path = `${userId}/avatar-${Date.now()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
@@ -159,16 +180,24 @@ export default function SettingsModal({
       setEmailFeedback({ type: "error", text: "Email cannot be empty." });
       return;
     }
+    if (!emailPassword) {
+      setEmailFeedback({
+        type: "error",
+        text: "Enter your current password to change your email.",
+      });
+      return;
+    }
     setEmailSaving(true);
     setEmailFeedback(null);
     try {
       const res = await fetch("/api/settings/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: target }),
+        body: JSON.stringify({ email: target, password: emailPassword }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Could not update email.");
+      setEmailPassword("");
       setEmailFeedback({ type: "success", text: "Email updated." });
     } catch (err) {
       setEmailFeedback({
@@ -184,8 +213,15 @@ export default function SettingsModal({
 
   async function savePassword() {
     setPasswordFeedback(null);
-    if (newPassword.length < 6) {
-      setPasswordFeedback({ type: "error", text: "New password must be at least 6 characters." });
+    if (newPassword.length < 8) {
+      setPasswordFeedback({ type: "error", text: "New password must be at least 8 characters." });
+      return;
+    }
+    if (!/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      setPasswordFeedback({
+        type: "error",
+        text: "New password must contain at least one letter and one number.",
+      });
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -194,9 +230,15 @@ export default function SettingsModal({
     }
     setPasswordSaving(true);
     try {
-      // Verify the current password before changing it.
+      // Verify the current password before changing it. Read the email from
+      // the auth session because the user may have just changed it in this
+      // same modal (the server prop would still hold the old address).
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      const authEmail = authUser?.email ?? userEmail ?? "";
       const { error: verifyError } = await supabase.auth.signInWithPassword({
-        email: userEmail ?? "",
+        email: authEmail,
         password: currentPassword,
       });
       if (verifyError) throw new Error("Current password is incorrect.");
@@ -334,7 +376,7 @@ export default function SettingsModal({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -439,6 +481,20 @@ export default function SettingsModal({
                 Update email
               </button>
             </div>
+            <label className="mt-3 flex flex-col gap-1.5">
+              <span className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-muted">
+                Current password
+              </span>
+              <input
+                type="password"
+                value={emailPassword}
+                onChange={(e) => setEmailPassword(e.target.value)}
+                placeholder="Confirm with your current password"
+                autoComplete="current-password"
+                maxLength={72}
+                className="elev-pressed neu-focus rounded-xl px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle outline-none"
+              />
+            </label>
             {emailFeedback && (
               <p
                 className={`mt-2 text-[12px] font-semibold ${
@@ -472,6 +528,8 @@ export default function SettingsModal({
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="New password"
                   autoComplete="new-password"
+                  minLength={8}
+                  maxLength={72}
                   className="elev-pressed neu-focus rounded-xl px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle outline-none"
                 />
                 <input
@@ -480,6 +538,8 @@ export default function SettingsModal({
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm new password"
                   autoComplete="new-password"
+                  minLength={8}
+                  maxLength={72}
                   className="elev-pressed neu-focus rounded-xl px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle outline-none"
                 />
               </div>

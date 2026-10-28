@@ -106,7 +106,7 @@ export default function NotificationBell({ userId, userName, role, variant = "ne
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, userId, fetchNotifications]);
+  }, [supabase, userId, fetchNotifications, instanceId]);
 
   // Close the dropdown on outside click / Escape.
   useEffect(() => {

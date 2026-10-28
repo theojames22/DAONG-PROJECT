@@ -608,7 +608,7 @@ export default function MyScheduleView({ profile }: MyScheduleViewProps) {
             </h3>
             <p className="text-sm text-staff-body max-w-md">
               Add your available days and times to organize your schedule and let your team
-              know when you're available.
+              know when you&apos;re available.
             </p>
             <button
               type="button"
@@ -859,7 +859,7 @@ export default function MyScheduleView({ profile }: MyScheduleViewProps) {
             <div className="bg-white rounded-[20px] border border-staff-border p-5 shadow-[0_1px_2px_rgba(15,27,61,0.04),0_10px_30px_rgba(37,99,235,0.06)] flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-staff-body uppercase tracking-wider">
-                  This Month's Availability
+                  This Month&apos;s Availability
                 </span>
                 <Sparkles className="h-4 w-4 text-staff-blue-ink" />
               </div>

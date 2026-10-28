@@ -11,12 +11,10 @@
 --   3. Staff could write arbitrary attendance sessions directly.
 --   4. Anonymous callers could reach report/finalization helper functions.
 --
--- It also makes the project-files bucket private.
---
--- IMPORTANT DEPLOYMENT ORDER:
---   Deploy the application code that reads /api/outputs/[id]/file and
---   /api/projects/[id]/file BEFORE running the storage section at the end,
---   otherwise existing file previews will point at a private bucket.
+-- This file is the CORE hardening step. It deliberately leaves the
+-- project-files bucket public so it can be applied before the app deploy.
+-- Run supabase/security_hardening_storage_2026-10-28.sql only after the
+-- authenticated file routes are live.
 --
 -- The function grants at the end assume PostgreSQL's default EXECUTE
 -- privilege to PUBLIC. They are explicit so the live project is covered
@@ -114,6 +112,49 @@ update public.profiles
    set required_weekly_hours = 0
  where role = 'head'
    and required_weekly_hours is distinct from 0;
+
+-- Database-level invariants that must hold even for service-role writes:
+--   • a Head always has 0 required hours
+--   • the final Head cannot be demoted (serialized so two concurrent
+--     demotions cannot both pass the count check)
+create or replace function public.enforce_profile_invariants()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.role = 'head' then
+    new.required_weekly_hours := 0;
+  elsif new.required_weekly_hours < 0 or new.required_weekly_hours > 168 then
+    raise exception 'Required weekly hours must be between 0 and 168'
+      using errcode = '23514';
+  end if;
+
+  if tg_op = 'UPDATE'
+     and old.role = 'head'
+     and new.role is distinct from 'head' then
+    perform pg_advisory_xact_lock(hashtext('public.profiles.last_head')::bigint);
+
+    if not exists (
+      select 1
+        from public.profiles
+       where role = 'head'
+         and id is distinct from old.id
+    ) then
+      raise exception 'At least one Head account must remain'
+        using errcode = '23514';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_profile_invariants on public.profiles;
+create trigger on_profile_invariants
+  before insert or update on public.profiles
+  for each row execute procedure public.enforce_profile_invariants();
 
 -- ---------------------------------------------------------------------
 -- 3. ATTENDANCE — remove direct client writes. Time is server time;
@@ -317,6 +358,37 @@ begin
 end;
 $$;
 
+-- Existing data may predate the RPC. Refuse to install the one-open-session
+-- guarantee until an operator resolves duplicate open sessions manually; this
+-- migration never closes or deletes attendance rows.
+do $$
+declare
+  v_duplicates text;
+begin
+  select string_agg(employee_id::text || ' (' || open_count || ')', ', ')
+    into v_duplicates
+    from (
+      select employee_id, count(*) as open_count
+        from public.sessions
+       where time_out is null
+       group by employee_id
+      having count(*) > 1
+    ) duplicates;
+
+  if v_duplicates is not null then
+    raise exception
+      'Duplicate open sessions must be resolved before hardening: %',
+      v_duplicates;
+  end if;
+end;
+$$;
+
+-- Defense in depth: the RPC already serializes on the profile row, but the
+-- database must also refuse a second open row from any future write path.
+create unique index if not exists sessions_one_open_per_employee
+  on public.sessions (employee_id)
+  where time_out is null;
+
 -- Add useful indexes without changing behavior.
 create index if not exists outputs_employee_created_at_idx
   on public.outputs (employee_id, created_at desc);
@@ -325,12 +397,36 @@ create index if not exists outputs_date_idx
 create index if not exists sessions_time_in_idx
   on public.sessions (time_in);
 
+-- Notifications: still self-sent, but a project thread may only reference a
+-- project the sender can actually see. Without this, a guessed project UUID
+-- could inject a message into someone else's approval thread.
+drop policy if exists "Users can send notifications as themselves"
+  on public.notifications;
+create policy "Users can send notifications as themselves"
+  on public.notifications for insert
+  with check (
+    auth.uid() = sender_id
+    and (
+      project_id is null
+      or exists (
+        select 1
+          from public.projects p
+         where p.id = project_id
+           and (p.submitted_by = auth.uid() or public.is_admin())
+      )
+    )
+  );
+
 -- ---------------------------------------------------------------------
--- 4. OUTPUT SUBMISSION — direct browser inserts remain possible only
---    through the application endpoint, but the database now forces the
---    fields a client must never control. The endpoint already validates
---    the body; this is the defense-in-depth layer.
+-- 4. OUTPUT SUBMISSION — the server endpoint is the only write path.
+--    The database forces the fields a client must never control, and the
+--    browser insert policy is removed. The endpoint already validates the
+--    body; this is the defense-in-depth layer.
 -- ---------------------------------------------------------------------
+-- Written/link/file rows can legitimately have no public URL now that
+-- attachments are streamed through an authenticated route.
+alter table public.outputs alter column attachment_url drop not null;
+
 create or replace function public.guard_output_insert()
 returns trigger
 language plpgsql
@@ -364,9 +460,125 @@ create trigger on_output_guard_insert
   before insert on public.outputs
   for each row execute procedure public.guard_output_insert();
 
+-- Insertion now happens only in /api/outputs after authentication and
+-- validation, using the service-role client. Removing the browser policy
+-- makes that server route the single write path; the trigger above remains
+-- as defense-in-depth if this policy is ever re-added.
+drop policy if exists "Users can insert their own outputs" on public.outputs;
+
 -- Project review rows are created by the mirror trigger (security definer)
--- or by service-role server code. A browser no longer needs a direct insert.
+-- or by service-role server code. A browser no longer needs a direct insert,
+-- and a review row is not deletable from the browser.
 drop policy if exists "Users can insert their own projects" on public.projects;
+drop policy if exists "Heads can delete any project" on public.projects;
+
+-- Review attribution is server/database-owned. The approval UI still sends
+-- reviewed_by/reviewed_at, but those values are advisory; a Head can never
+-- credit a decision to another account or backdate it. The submitted
+-- artifact's ownership, date, attachment, and creation time are immutable
+-- once the row exists, even for a Head.
+create or replace function public.guard_project_review_attribution()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.is_admin() then
+    return new;
+  end if;
+
+  new.id := old.id;
+  new.title := old.title;
+  new.description := old.description;
+  new.file_url := old.file_url;
+  new.submitted_by := old.submitted_by;
+  new.source_output_id := old.source_output_id;
+  new.created_at := old.created_at;
+
+  if new.status is distinct from old.status then
+    new.reviewed_by := auth.uid();
+  else
+    new.reviewed_by := old.reviewed_by;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_project_guard_review_attribution on public.projects;
+create trigger on_project_guard_review_attribution
+  before update on public.projects
+  for each row execute procedure public.guard_project_review_attribution();
+
+create or replace function public.guard_output_review_attribution()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.is_admin() then
+    return new;
+  end if;
+
+  -- The submitted artifact is immutable; only the review fields may change.
+  new.id := old.id;
+  new.employee_id := old.employee_id;
+  new.date := old.date;
+  new.title := old.title;
+  new.attachment_type := old.attachment_type;
+  new.attachment_url := old.attachment_url;
+  new.content := old.content;
+  new.submission_notes := old.submission_notes;
+  new.storage_path := old.storage_path;
+  new.file_name := old.file_name;
+  new.file_mime_type := old.file_mime_type;
+  new.file_size := old.file_size;
+  new.created_at := old.created_at;
+
+  if new.status is distinct from old.status then
+    new.reviewed_by := auth.uid();
+    new.reviewed_at := now();
+  else
+    new.reviewed_by := old.reviewed_by;
+    new.reviewed_at := old.reviewed_at;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_output_guard_review_attribution on public.outputs;
+create trigger on_output_guard_review_attribution
+  before update on public.outputs
+  for each row execute procedure public.guard_output_review_attribution();
+
+-- The same reopen-before-flipping rule the project workflow uses also applies
+-- to the mirrored output, so a direct PostgREST update cannot bypass it.
+create or replace function public.guard_output_final_decision()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.status in ('done', 'rejected')
+     and new.status in ('done', 'rejected')
+     and new.status is distinct from old.status then
+    raise exception
+      'Reopen the submission to "checking" before changing a final decision'
+      using errcode = '23514';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_output_guard_final_decision on public.outputs;
+create trigger on_output_guard_final_decision
+  before update on public.outputs
+  for each row execute procedure public.guard_output_final_decision();
 
 -- ---------------------------------------------------------------------
 -- 5. REPORT FUNCTIONS — remove anonymous reachability.
@@ -436,36 +648,32 @@ revoke execute on function public.clock_out() from anon;
 grant execute on function public.clock_out() to authenticated;
 grant execute on function public.clock_out() to service_role;
 
--- ---------------------------------------------------------------------
--- 6. STORAGE — project deliverables are private.
---    Owners and Heads can read; uploads/updates remain folder-scoped.
---
---    Run this section only after the application routes shown in the
---    deployment note at the top are live.
--- ---------------------------------------------------------------------
+-- These reporting views are for signed-in Head/Staff sessions only. RLS on
+-- their base tables already returns no rows to anon, but remove the obsolete
+-- anon grant from credit_submitted_days.sql as well.
+revoke select on public.attendance_day_status from anon;
+revoke select on public.employee_week_hours from anon;
+revoke select on public.daily_hours from anon;
+
+-- The avatars bucket stays public by design, but its upload limits are
+-- enforced by Storage itself so a crafted client cannot store oversized or
+-- executable content. The settings UI mirrors these limits.
 update storage.buckets
-   set public = false
- where id = 'project-files';
+   set file_size_limit = 5242880,
+       allowed_mime_types = array[
+         'image/png',
+         'image/jpeg',
+         'image/webp',
+         'image/gif'
+       ]
+ where id = 'avatars';
 
-drop policy if exists "Public read project files" on storage.objects;
-drop policy if exists "Owners read project files" on storage.objects;
-drop policy if exists "Heads read project files" on storage.objects;
-
-create policy "Owners read project files"
-  on storage.objects for select
-  to authenticated
-  using (
-    bucket_id = 'project-files'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
-
-create policy "Heads read project files"
-  on storage.objects for select
-  to authenticated
-  using (
-    bucket_id = 'project-files'
-    and public.is_admin()
-  );
+-- ---------------------------------------------------------------------
+-- 6. STORAGE is a separate migration:
+--    supabase/security_hardening_storage_2026-10-28.sql
+--    It flips project-files private, so it must run only after the
+--    authenticated file routes are deployed and verified.
+-- ---------------------------------------------------------------------
 
 commit;
 

@@ -18,7 +18,7 @@ const SUBMISSION_COLUMNS =
 export default async function ProjectDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   let profile;
   let user;
@@ -37,9 +37,10 @@ export default async function ProjectDetailPage({
     redirect("/employee");
   }
 
+  const { id } = await params;
   if (
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      params.id
+      id
     )
   ) {
     notFound();
@@ -53,7 +54,7 @@ export default async function ProjectDetailPage({
   const { data: project } = await supabase
     .from("projects")
     .select(PROJECT_COLUMNS)
-    .or(`id.eq.${params.id},source_output_id.eq.${params.id}`)
+    .or(`id.eq.${id},source_output_id.eq.${id}`)
     .maybeSingle();
 
   if (!project) notFound();

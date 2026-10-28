@@ -13,14 +13,15 @@ const UUID_RE =
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!UUID_RE.test(params.id)) {
+  const { id } = await params;
+  if (!UUID_RE.test(id)) {
     return new NextResponse("Not found", { status: 404 });
   }
 
   const target = new URL(
-    `/api/projects/${encodeURIComponent(params.id)}/file?download=1`,
+    `/api/projects/${encodeURIComponent(id)}/file?download=1`,
     request.url
   );
   return NextResponse.redirect(target, 307);

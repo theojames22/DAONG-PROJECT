@@ -157,6 +157,7 @@ export default function DetailsDrawer({
 
     // Focus the close button so keyboard users land inside the dialog.
     closeButtonRef.current?.focus();
+    const opener = openerRef.current;
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -183,7 +184,7 @@ export default function DetailsDrawer({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       // Focus goes back to the button that opened the drawer.
-      openerRef.current?.focus();
+      opener?.focus();
     };
   }, [open, onClose, openerRef]);
 

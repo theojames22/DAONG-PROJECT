@@ -20,16 +20,20 @@ export default function ForgotPasswordPage() {
 
     try {
       const supabase = createClient();
+      const siteUrl =
+        process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+        redirectTo: `${siteUrl}/auth/callback`,
       });
 
       if (error) throw error;
 
       setStatus("success");
-    } catch (err: any) {
+    } catch {
       setStatus("error");
-      setErrorMessage(err.message || "An unexpected error occurred. Please try again.");
+      setErrorMessage(
+        "We couldn't send the reset email right now. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -49,7 +53,7 @@ export default function ForgotPasswordPage() {
               </div>
               <h1 className="mt-2 font-display text-2xl font-semibold text-ink">Check your email</h1>
               <p className="text-[14px] text-ink-muted">
-                If an account exists with this email, you'll receive a password reset link.
+                If an account exists with this email, you&apos;ll receive a password reset link.
               </p>
             </div>
             <button
@@ -72,7 +76,7 @@ export default function ForgotPasswordPage() {
           <div className="mt-6 mb-7">
             <h1 className="font-display text-2xl font-semibold text-ink">Forgot Password</h1>
             <p className="mt-2 text-[14px] text-ink-muted">
-              Enter your email address and we'll send you a password reset link.
+              Enter your email address and we&apos;ll send you a password reset link.
             </p>
           </div>
 

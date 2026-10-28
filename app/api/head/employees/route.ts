@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Head access required." }, { status: 403 });
   }
 
+  const body = await request.json().catch(() => null);
   const {
     email,
     password,
@@ -31,11 +32,29 @@ export async function POST(request: Request) {
     position,
     role,
     required_weekly_hours,
-  } = await request.json();
+  } = body ?? {};
 
-  if (!email || !password || !full_name) {
+  const cleanEmail =
+    typeof email === "string" ? email.trim().toLowerCase() : "";
+  const cleanName = typeof full_name === "string" ? full_name.trim() : "";
+
+  if (
+    !cleanEmail ||
+    cleanEmail.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) ||
+    typeof password !== "string" ||
+    password.length < 8 ||
+    password.length > 72 ||
+    !/[A-Za-z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !cleanName ||
+    cleanName.length > 120
+  ) {
     return NextResponse.json(
-      { error: "Email, temporary password, and name are required." },
+      {
+        error:
+          "A valid email, a name (maximum 120 characters), and a temporary password of 8–72 characters with at least one letter and one number are required.",
+      },
       { status: 400 }
     );
   }
@@ -73,20 +92,30 @@ export async function POST(request: Request) {
         : normalizedPosition
       : assignedRole;
 
-  // The weekly requirement is expressed in hours. A malformed value falls
-  // back to the column default rather than writing NaN into the profile.
-  const hours = Number(required_weekly_hours);
+  // The weekly requirement is expressed in hours. A missing value uses the
+  // product default; a malformed or out-of-range value is rejected instead of
+  // being written to the profile.
+  let hours = 40;
+  if (!isNewHead && required_weekly_hours !== undefined) {
+    hours = Number(required_weekly_hours);
+    if (!Number.isFinite(hours) || hours < 0 || hours > 168) {
+      return NextResponse.json(
+        { error: "Required weekly hours must be between 0 and 168." },
+        { status: 400 }
+      );
+    }
+  }
 
   const admin = createAdminClient();
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
-    email,
+    email: cleanEmail,
     password,
     email_confirm: true,
     // Role is assigned server-side below through the service-role client.
     // Never put an authorization value in user metadata: the signup trigger
     // is intentionally not allowed to trust it.
-    user_metadata: { full_name },
+    user_metadata: { full_name: cleanName },
   });
 
   if (createError || !created.user) {
@@ -104,18 +133,25 @@ export async function POST(request: Request) {
     .update({
       role: assignedRole,
       position: finalPosition,
-      required_weekly_hours: isNewHead
-        ? 0
-        : Number.isFinite(hours) && hours >= 0
-          ? hours
-          : 40,
+      required_weekly_hours: isNewHead ? 0 : hours,
     })
     .eq("id", created.user.id);
 
   if (updateError) {
     console.error("[employees] profile setup failed:", updateError.message);
+    // Do not leave a half-created auth account behind: the Head can retry
+    // with the same email once the cause is fixed.
+    const { error: cleanupError } = await admin.auth.admin.deleteUser(
+      created.user.id
+    );
+    if (cleanupError) {
+      console.error(
+        "[employees] orphan account cleanup failed:",
+        cleanupError.message
+      );
+    }
     return NextResponse.json(
-      { error: "The account was created but its profile could not be finalized." },
+      { error: "The account could not be finalized. Try again." },
       { status: 500 }
     );
   }
@@ -143,7 +179,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Head access required." }, { status: 403 });
   }
 
-  const { id, full_name, position, role, required_weekly_hours } = await request.json();
+  const body = await request.json().catch(() => null);
+  const { id, full_name, position, role, required_weekly_hours } = body ?? {};
 
   if (
     typeof id !== "string" ||
@@ -153,11 +190,24 @@ export async function PATCH(request: Request) {
   }
 
   const admin = createAdminClient();
+  const { data: target, error: targetError } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (targetError || !target) {
+    return NextResponse.json({ error: "Employee not found." }, { status: 404 });
+  }
+
   const updateData: Record<string, string | number | null> = {};
 
   if (full_name !== undefined) {
-    if (typeof full_name !== "string") {
-      return NextResponse.json({ error: "Name must be text." }, { status: 400 });
+    if (typeof full_name !== "string" || full_name.trim().length > 120) {
+      return NextResponse.json(
+        { error: "Name must be text with a maximum of 120 characters." },
+        { status: 400 }
+      );
     }
     updateData.full_name = full_name.trim() || null;
   }
@@ -202,8 +252,10 @@ export async function PATCH(request: Request) {
     nextRole = role;
   }
 
-  // Heads are administrators: never carry a weekly requirement.
-  if (nextRole === "head") {
+  // Heads are administrators: never carry a weekly requirement, including
+  // when a legacy client sends only required_weekly_hours for an existing
+  // Head and omits role/position.
+  if (nextRole === "head" || (nextRole === undefined && target.role === "head")) {
     updateData.required_weekly_hours = 0;
   } else if (nextRole === "staff" && required_weekly_hours === undefined) {
     updateData.required_weekly_hours = 40;
@@ -216,6 +268,30 @@ export async function PATCH(request: Request) {
       );
     }
     updateData.required_weekly_hours = hours;
+  }
+
+  // Never allow the acting Head to remove their own administrator access, and
+  // never allow the final Head account to be demoted. Both would lock the
+  // organization out of every Head-only route.
+  if (nextRole === "staff" && target.role === "head") {
+    if (id === user.id) {
+      return NextResponse.json(
+        { error: "You cannot change your own role to Staff." },
+        { status: 400 }
+      );
+    }
+
+    const { count } = await admin
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "head");
+
+    if ((count ?? 0) <= 1) {
+      return NextResponse.json(
+        { error: "At least one Head account must remain." },
+        { status: 400 }
+      );
+    }
   }
 
   const { error } = await admin.from("profiles").update(updateData).eq("id", id);

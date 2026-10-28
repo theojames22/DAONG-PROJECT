@@ -84,7 +84,12 @@ export default function AddEmployeeForm() {
       />
       <input
         required
-        type="text"
+        type="password"
+        autoComplete="new-password"
+        minLength={8}
+        maxLength={72}
+        pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,72}"
+        title="8–72 characters with at least one letter and one number"
         placeholder="Temporary password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
@@ -115,7 +120,7 @@ export default function AddEmployeeForm() {
       {error && <p className="text-[13px] text-red-600">{error}</p>}
 
       <p className="text-[12px] text-ink-muted">
-        They'll sign in with this email and temporary password — share it with them
+        They&apos;ll sign in with this email and temporary password — share it with them
         directly, and ask them to change it after their first login.
       </p>
 

@@ -10,8 +10,14 @@ import {
   weekRangeForKey,
   zonedDateTimeToUtc,
 } from "../lib/time";
-import { storagePathFromUrl } from "../lib/storage";
-import { isSafeHttpUrl, validateSubmission } from "../lib/outputs";
+import { isSafeStoragePath, storagePathFromUrl } from "../lib/storage";
+import {
+  isInlineImageMime,
+  isSafeHttpUrl,
+  safeContentType,
+  validateSubmission,
+} from "../lib/outputs";
+import { csvEscape } from "../lib/report/export";
 
 test("dateKeyIn uses the app timezone, not the host timezone", () => {
   // 16:30 UTC is already the next calendar day in Manila.
@@ -98,6 +104,17 @@ test("storagePathFromUrl accepts only this project's object paths", () => {
   assert.equal(storagePathFromUrl("https://example.com/project-files/a.png"), null);
 });
 
+test("storage paths reject traversal and absolute keys", () => {
+  assert.equal(isSafeStoragePath("user-1/deliverables/a b.png"), true);
+  assert.equal(isSafeStoragePath("user-1/../other/a.png"), false);
+  assert.equal(isSafeStoragePath("user-1/./a.png"), false);
+  assert.equal(isSafeStoragePath("/user-1/a.png"), false);
+  assert.equal(isSafeStoragePath("user-1\\a.png"), false);
+  assert.equal(isSafeStoragePath("user-1//a.png"), false);
+  assert.equal(isSafeStoragePath(""), false);
+  assert.equal(isSafeStoragePath(null), false);
+});
+
 test("link validation accepts only http(s)", () => {
   assert.equal(isSafeHttpUrl("https://example.com/a"), true);
   assert.equal(isSafeHttpUrl("http://example.com/a"), true);
@@ -127,7 +144,7 @@ test("submission validation enforces server-side limits", () => {
       notes: "",
       file: null,
     }) ?? "",
-    /title/i
+    /name|title/i
   );
 
   assert.match(
@@ -141,4 +158,23 @@ test("submission validation enforces server-side limits", () => {
     }) ?? "",
     /link/i
   );
+});
+
+test("file responses never echo executable MIME types", () => {
+  assert.equal(safeContentType("image/png"), "image/png");
+  assert.equal(safeContentType("application/pdf"), "application/pdf");
+  assert.equal(safeContentType("text/html"), "application/octet-stream");
+  assert.equal(safeContentType("image/svg+xml"), "application/octet-stream");
+  assert.equal(safeContentType(null), "application/octet-stream");
+
+  assert.equal(isInlineImageMime("image/png"), true);
+  assert.equal(isInlineImageMime("image/svg+xml"), false);
+  assert.equal(isInlineImageMime("text/html"), false);
+});
+
+test("CSV export neutralises spreadsheet formulas", () => {
+  assert.equal(csvEscape("Normal name"), "Normal name");
+  assert.equal(csvEscape('=HYPERLINK("https://evil")'), `"'=HYPERLINK(""https://evil"")"`);
+  assert.equal(csvEscape("+1+1"), "'+1+1");
+  assert.equal(csvEscape("@SUM(A1:A2)"), "'@SUM(A1:A2)");
 });

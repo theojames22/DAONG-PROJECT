@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { safeFileName } from "@/lib/file-name";
 import { dateKeyIn } from "@/lib/report/calc";
 import {
   classifyUploadError,
   isSafeHttpUrl,
   isUuid,
+  MAX_FILE_SIZE,
   normalizeContent,
   uploadErrorCopy,
   validateSubmission,
@@ -101,6 +103,21 @@ export async function POST(request: Request) {
     return fail(403, "FORBIDDEN", "Only Staff members can submit outputs.");
   }
 
+  // Reject an oversized body before multipart parsing buffers it in memory.
+  // The bucket and validation both enforce the real file-size limit; this is
+  // the cheap transport-level guard. A request without Content-Length still
+  // falls through to the normal per-file validation.
+  const declaredLength = Number(request.headers.get("content-length") || "0");
+  if (
+    Number.isFinite(declaredLength) &&
+    declaredLength > MAX_FILE_SIZE + 2 * 1024 * 1024
+  ) {
+    return fail(413, "FILE_TOO_LARGE", uploadErrorCopy("FILE_TOO_LARGE").message, {
+      canSwitchToWritten: true,
+      retryable: false,
+    });
+  }
+
   let form: FormData;
   try {
     form = await request.formData();
@@ -172,6 +189,13 @@ export async function POST(request: Request) {
   let fileMimeType: string | null = null;
   let fileSize: number | null = null;
 
+  // Output attachments are written with the service-role client after this
+  // route has authenticated the caller and validated the body. Browser
+  // Storage write policies for project-files are removed by the storage
+  // migration, so a Staff member cannot overwrite an already-reviewed file
+  // by calling Storage directly.
+  const admin = createAdminClient();
+
   // -------------------------------------------------------------------
   // Upload first (file/image). Nothing is written to the database until
   // the storage provider has confirmed the object.
@@ -203,7 +227,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await admin.storage
       .from(BUCKET)
       .upload(storagePath, bytes, {
         contentType: file.type || "application/octet-stream",
@@ -233,7 +257,7 @@ export async function POST(request: Request) {
     }
 
     // The bucket is private. Reads go through /api/outputs/[id]/file, which
-    // checks the output row and Storage RLS before streaming the object.
+    // checks the output row, then streams the object with the service role.
     // Never persist a public URL: it would outlive authorization changes.
     attachmentUrl = null;
   } else if (type === "link") {
@@ -244,7 +268,7 @@ export async function POST(request: Request) {
   // Persist. Only metadata + the storage reference go in the database;
   // the file itself stays in the bucket.
   // -------------------------------------------------------------------
-  const { data: inserted, error: insertError } = await supabase
+  const { data: inserted, error: insertError } = await admin
     .from("outputs")
     .insert({
       id,
@@ -271,12 +295,25 @@ export async function POST(request: Request) {
     if (insertError.code === "23505") {
       const { data: existing } = await supabase
         .from("outputs")
-        .select("id, employee_id")
+        .select("id, employee_id, storage_path")
         .eq("id", id)
         .maybeSingle();
 
       if (existing && existing.employee_id === user.id) {
+        // A retry with a different filename/uploads a new object, but the
+        // database row already points at the first one. Remove only the
+        // orphan we just wrote; never delete the stored file the row uses.
+        if (storagePath && existing.storage_path !== storagePath) {
+          await removeOrphanUpload(storagePath, user.id);
+        }
         return NextResponse.json({ id, duplicate: true }, { status: 200 });
+      }
+
+      // The reference collides with another account's row. The object just
+      // uploaded lives under this user's folder, so it cannot belong to that
+      // row and is safe to remove.
+      if (storagePath) {
+        await removeOrphanUpload(storagePath, user.id);
       }
       return fail(409, "DUPLICATE", "That submission reference is already in use.", {
         retryable: false,

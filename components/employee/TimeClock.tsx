@@ -93,7 +93,7 @@ export default function TimeClock({ employeeId }: { employeeId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-subtle">
-            Today's attendance
+            Today&apos;s attendance
           </p>
           <div className="mt-2 flex items-center gap-2">
             <span

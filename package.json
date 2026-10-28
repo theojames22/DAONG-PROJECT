@@ -2,6 +2,9 @@
   "name": "daong-attendance-tracker",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -19,6 +22,13 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.32"
+    },
+    "postcss-selector-parser": "^6.1.5",
+    "source-map-js": "^1.2.2"
+  },
   "devDependencies": {
     "@types/node": "^20.14.10",
     "@types/qrcode": "^1.5.6",
@@ -31,5 +41,21 @@
     "tailwindcss": "^3.4.6",
     "tsx": "^4.20.6",
     "typescript": "^5.5.4"
-  }
+  },
+  "description": "Attendance, scheduling, output review, and compliance reporting for Daong. Built with Next.js 15 (App Router), TypeScript, Tailwind CSS, and Supabase.",
+  "main": "next.config.js",
+  "directories": {
+    "lib": "lib",
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theojames22/DAONG-PROJECT.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/theojames22/DAONG-PROJECT/issues"
+  },
+  "homepage": "https://github.com/theojames22/DAONG-PROJECT#readme"
 }

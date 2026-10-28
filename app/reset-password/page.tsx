@@ -15,6 +15,7 @@ export default function ResetPasswordPage() {
 
   const validatePassword = (pwd: string) => {
     if (pwd.length < 8) return "Password must be at least 8 characters.";
+    if (pwd.length > 72) return "Password must be 72 characters or fewer.";
     if (!/[a-zA-Z]/.test(pwd)) return "Password must contain at least one letter.";
     if (!/[0-9]/.test(pwd)) return "Password must contain at least one number.";
     return null;
@@ -104,6 +105,8 @@ export default function ResetPasswordPage() {
                 type="password"
                 autoComplete="new-password"
                 required
+                minLength={8}
+                maxLength={72}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -120,6 +123,8 @@ export default function ResetPasswordPage() {
                 type="password"
                 autoComplete="new-password"
                 required
+                minLength={8}
+                maxLength={72}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"

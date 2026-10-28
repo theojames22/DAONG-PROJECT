@@ -46,6 +46,11 @@ function normalizeTime(t: string): string {
   return t.length === 5 ? `${t}:00` : t;
 }
 
+/** Exactly HH:MM or HH:MM:SS, with real clock ranges. */
+function isValidTime(t: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(t);
+}
+
 /** All `valid` dates a recurring request expands to. */
 function expandRecurrence(
   fromDate: string,
@@ -153,8 +158,8 @@ export async function POST(request: Request) {
     typeof startTime !== "string" ||
     typeof endTime !== "string" ||
     !isValidDateKey(date) ||
-    !/^\d{2}:\d{2}(:\d{2})?$/.test(startTime) ||
-    !/^\d{2}:\d{2}(:\d{2})?$/.test(endTime)
+    !isValidTime(startTime) ||
+    !isValidTime(endTime)
   ) {
     return NextResponse.json(
       { error: "A valid date, start time, and end time are required." },
@@ -164,6 +169,13 @@ export async function POST(request: Request) {
 
   const rowStatus: "available" | "unavailable" =
     status === "unavailable" ? "unavailable" : "available";
+
+  if (typeof notes === "string" && notes.length > 1000) {
+    return NextResponse.json(
+      { error: "Notes must be 1,000 characters or fewer." },
+      { status: 400 }
+    );
+  }
 
   if (toMinutes(endTime) <= toMinutes(startTime)) {
     return NextResponse.json(
@@ -313,8 +325,8 @@ export async function PUT(request: Request) {
     typeof startTime !== "string" ||
     typeof endTime !== "string" ||
     !isValidDateKey(date) ||
-    !/^\d{2}:\d{2}(:\d{2})?$/.test(startTime) ||
-    !/^\d{2}:\d{2}(:\d{2})?$/.test(endTime)
+    !isValidTime(startTime) ||
+    !isValidTime(endTime)
   ) {
     return NextResponse.json(
       { error: "A valid ID, date, start time, and end time are required." },
@@ -334,6 +346,13 @@ export async function PUT(request: Request) {
   if (toMinutes(endTime) <= toMinutes(startTime)) {
     return NextResponse.json(
       { error: "The end time must be later than the start time." },
+      { status: 400 }
+    );
+  }
+
+  if (typeof notes === "string" && notes.length > 1000) {
+    return NextResponse.json(
+      { error: "Notes must be 1,000 characters or fewer." },
       { status: 400 }
     );
   }

@@ -2,6 +2,20 @@
 
 export const PROJECT_FILES_BUCKET = "project-files";
 
+/** Storage paths are relative object keys, never traversal or absolute paths. */
+export function isSafeStoragePath(
+  value: string | null | undefined
+): value is string {
+  if (!value) return false;
+  if (value.startsWith("/") || value.includes("\\") || value.includes("\0")) {
+    return false;
+  }
+
+  return value
+    .split("/")
+    .every((part) => part.length > 0 && part !== "." && part !== "..");
+}
+
 /**
  * Extract the object path from a Supabase Storage public/sign URL.
  *
@@ -45,16 +59,7 @@ export function storagePathFromUrl(
   }
 
   // Storage paths are relative object keys, never traversal or absolute paths.
-  if (
-    !decoded ||
-    decoded.startsWith("/") ||
-    decoded.includes("\\") ||
-    decoded.split("/").some((part) => part === ".." || part === ".")
-  ) {
-    return null;
-  }
-
-  return decoded;
+  return isSafeStoragePath(decoded) ? decoded : null;
 }
 
 /** The authenticated route that streams one output's attachment. */

@@ -186,6 +186,19 @@ export async function POST(request: Request) {
     (endedAt.getTime() - startedAt.getTime()) / 60000
   );
 
+  if (durationMinutes > 24 * 60) {
+    return NextResponse.json(
+      { error: "A single usage entry cannot be longer than 24 hours." },
+      { status: 400 }
+    );
+  }
+  if (typeof remarks === "string" && remarks.length > 2000) {
+    return NextResponse.json(
+      { error: "Remarks must be 2,000 characters or fewer." },
+      { status: 400 }
+    );
+  }
+
   // ---- Backend conflict recheck against real rows ----
   const existingConflict = await findConflicts(admin, {
     equipmentId,
@@ -319,6 +332,19 @@ export async function PATCH(request: Request) {
   const durationMinutes = Math.round(
     (endedAt.getTime() - startedAt.getTime()) / 60000
   );
+
+  if (durationMinutes > 24 * 60) {
+    return NextResponse.json(
+      { error: "A single usage entry cannot be longer than 24 hours." },
+      { status: 400 }
+    );
+  }
+  if (typeof remarks === "string" && remarks.length > 2000) {
+    return NextResponse.json(
+      { error: "Remarks must be 2,000 characters or fewer." },
+      { status: 400 }
+    );
+  }
 
   // Re-check both conflict rules against real rows, ignoring the row
   // being edited so a record never conflicts with itself.

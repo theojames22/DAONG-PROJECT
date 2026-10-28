@@ -65,7 +65,11 @@ function round(value: number): number {
 
 /** Escape one CSV field: quote when needed, double inner quotes. */
 export function csvEscape(value: string | number): string {
-  const text = String(value ?? "");
+  const raw = String(value ?? "");
+  // Spreadsheet formula injection: a cell beginning with these characters
+  // can execute a formula when opened in Excel/LibreOffice. Prefix it with
+  // an apostrophe so it is always treated as text.
+  const text = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
   if (/[",\r\n]/.test(text)) {
     return `"${text.replace(/"/g, '""')}"`;
   }

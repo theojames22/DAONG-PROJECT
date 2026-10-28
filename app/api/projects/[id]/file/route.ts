@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { safeFileName } from "@/lib/file-name";
+import { isInlineImageMime, safeContentType } from "@/lib/outputs";
 import {
+  isSafeStoragePath,
   PROJECT_FILES_BUCKET,
   storagePathFromUrl,
 } from "@/lib/storage";
@@ -27,9 +29,10 @@ function notFound() {
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!UUID_RE.test(params.id)) return notFound();
+  const { id } = await params;
+  if (!UUID_RE.test(id)) return notFound();
 
   const supabase = await createClient();
   const {
@@ -42,8 +45,8 @@ export async function GET(
 
   const { data: project, error: projectError } = await supabase
     .from("projects")
-    .select("id, source_output_id, file_url, title")
-    .eq("id", params.id)
+    .select("id, source_output_id, submitted_by, file_url, title")
+    .eq("id", id)
     .maybeSingle();
 
   if (projectError || !project) return notFound();
@@ -75,7 +78,17 @@ export async function GET(
     objectPath = storagePathFromUrl(project.file_url as string | null);
   }
 
-  if (!objectPath) return notFound();
+  if (!isSafeStoragePath(objectPath)) return notFound();
+
+  // A Staff submitter may only read objects under their own uid folder. RLS
+  // already limits projects to their owner/Head, but a legacy row could carry
+  // an arbitrary path; the service-role download must not cross folders.
+  if (
+    project.submitted_by === user.id &&
+    !objectPath.startsWith(`${user.id}/`)
+  ) {
+    return notFound();
+  }
 
   const admin = createAdminClient();
   const { data: blob, error: downloadError } = await admin.storage
@@ -86,18 +99,17 @@ export async function GET(
 
   const url = new URL(request.url);
   const forceDownload = url.searchParams.get("download") === "1";
-  const isImage =
-    mimeType?.startsWith("image/") ||
-    /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(fileName);
+  const storedMime = mimeType || blob.type || null;
+  const canInline = isInlineImageMime(storedMime);
   const filename = safeFileName(fileName, "attachment");
 
   return new NextResponse(blob, {
     status: 200,
     headers: {
-      "Content-Type": mimeType || blob.type || "application/octet-stream",
+      "Content-Type": safeContentType(storedMime),
       "Content-Length": String(blob.size),
       "Content-Disposition": `${
-        isImage && !forceDownload ? "inline" : "attachment"
+        canInline && !forceDownload ? "inline" : "attachment"
       }; filename="${filename.replace(/"/g, "")}"`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",

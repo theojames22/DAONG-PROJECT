@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { authCookieOptions } from "@/lib/supabase/cookie-options";
 
 // Used inside client components (e.g. the login form) to call
 // supabase.auth.signInWithPassword, read the session, etc.
@@ -10,5 +11,5 @@ export function createClient() {
     throw new Error("Missing Supabase environment variables. Please check your .env.local file.");
   }
 
-  return createBrowserClient(url, key);
+  return createBrowserClient(url, key, { cookieOptions: authCookieOptions });
 }

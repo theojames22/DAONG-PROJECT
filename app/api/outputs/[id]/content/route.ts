@@ -16,9 +16,10 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!isUuid(params.id)) {
+  const { id } = await params;
+  if (!isUuid(id)) {
     return new NextResponse("Not found", { status: 404 });
   }
 
@@ -34,7 +35,7 @@ export async function GET(
   const { data: output, error } = await supabase
     .from("outputs")
     .select("id, title, attachment_type, content, submission_notes")
-    .eq("id", params.id)
+    .eq("id", id)
     .maybeSingle();
 
   if (error || !output || output.attachment_type !== "written") {

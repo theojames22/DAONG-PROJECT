@@ -65,6 +65,21 @@ export function isAllowedMime(mime: string): boolean {
   );
 }
 
+/** Only these raster formats may ever be rendered inline by a file route. */
+export function isInlineImageMime(mime: string | null | undefined): boolean {
+  return IMAGE_MIME.test(mime || "");
+}
+
+/**
+ * Content-Type for an authenticated file response. Unknown or legacy MIME
+ * values fall back to a download-only binary type instead of being echoed
+ * back as text/html or image/svg+xml, which could execute in the app origin.
+ */
+export function safeContentType(mime: string | null | undefined): string {
+  const normalized = (mime || "").toLowerCase();
+  return isAllowedMime(normalized) ? normalized : "application/octet-stream";
+}
+
 /** Code points, not UTF-16 units — matches Postgres char_length(). */
 export function countCharacters(value: string): number {
   return Array.from(value).length;

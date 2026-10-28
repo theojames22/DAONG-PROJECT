@@ -1,8 +1,8 @@
 /**
  * Filename helpers for downloading stored files.
  *
- * Files live behind public storage URLs (e.g. Supabase), so the only
- * reliable source for the original name is the last path segment of the
+ * Files may have been stored under legacy public URLs (e.g. Supabase), so the
+ * only reliable source for the original name is the last path segment of the
  * URL. Values are sanitized before being echoed in a
  * `Content-Disposition: attachment` header or a `download` attribute.
  */

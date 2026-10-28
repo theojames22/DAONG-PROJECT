@@ -37,7 +37,7 @@ import DashboardLiveSync from "@/components/head/dashboard/DashboardLiveSync";
 export default async function HeadPage({
   searchParams,
 }: {
-  searchParams: { week?: string };
+  searchParams: Promise<{ week?: string | string[] }>;
 }) {
   let profile;
   let viewerId = "";
@@ -65,12 +65,16 @@ export default async function HeadPage({
   const timezone = await getAppTimezone(supabase);
   const today = dateKeyIn(timezone);
   const currentWeek = weekRangeIn(timezone);
+  const resolvedSearchParams = await searchParams;
+  const weekParam = Array.isArray(resolvedSearchParams.week)
+    ? resolvedSearchParams.week[0]
+    : resolvedSearchParams.week;
 
   // Selected week (drives the Weekly Leaderboard). Invalid or future weeks
   // fall back to the current one instead of reaching the database as NaN.
   const requestedWeek =
-    searchParams.week && isValidDateKey(searchParams.week)
-      ? weekRangeForKey(searchParams.week)
+    weekParam && isValidDateKey(weekParam)
+      ? weekRangeForKey(weekParam)
       : currentWeek;
   const selectedWeek =
     requestedWeek.start > currentWeek.start ? currentWeek : requestedWeek;

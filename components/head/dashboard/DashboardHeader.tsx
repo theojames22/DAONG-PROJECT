@@ -84,7 +84,7 @@ export default function DashboardHeader({
               aria-label="Settings & Preferences"
               className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-600 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all hover:border-blue-200 hover:text-blue-600 hover:shadow-md active:scale-95"
             >
-              <SlidersHorizontal className="h-4 w-4" strokeWidth={2.2} />
+              <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={2.2} />
             </button>
           )}
         </div>

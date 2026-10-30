@@ -9,6 +9,7 @@ import styles from "@/app/head/workforce/workforce.module.css";
 export interface WeeklyLeaderboardProps {
   employees: Profile[];
   creditedByEmployee: Record<string, number>;
+  recordedByEmployee: Record<string, number>;
   activeEmployeeIds: string[];
   weekStart: string;
   weekEnd: string;
@@ -17,6 +18,7 @@ export interface WeeklyLeaderboardProps {
 export default function WeeklyLeaderboard({
   employees,
   creditedByEmployee,
+  recordedByEmployee,
   activeEmployeeIds,
   weekStart,
   weekEnd,
@@ -29,23 +31,29 @@ export default function WeeklyLeaderboard({
     return employees.filter((e) => e.role === "staff");
   }, [employees]);
 
-  // Calculate team total logged and required hours
-  const { totalLogged, totalRequired, targetPct } = useMemo(() => {
-    const logged = eligibleEmployees.reduce(
+  // Team totals: credited hours drive the target percentage, recorded hours
+  // are shown separately as context.
+  const { totalCredited, totalRecorded, totalRequired, targetPct } = useMemo(() => {
+    const credited = eligibleEmployees.reduce(
       (sum, e) => sum + (creditedByEmployee[e.id] ?? 0),
+      0
+    );
+    const recorded = eligibleEmployees.reduce(
+      (sum, e) => sum + (recordedByEmployee[e.id] ?? 0),
       0
     );
     const required = eligibleEmployees.reduce(
       (sum, e) => sum + (e.required_weekly_hours ?? 0),
       0
     );
-    const pct = creditedPercent(logged, required);
+    const pct = creditedPercent(credited, required);
     return {
-      totalLogged: logged,
+      totalCredited: credited,
+      totalRecorded: recorded,
       totalRequired: required,
       targetPct: pct,
     };
-  }, [eligibleEmployees, creditedByEmployee]);
+  }, [eligibleEmployees, creditedByEmployee, recordedByEmployee]);
 
   // Format week date range: e.g. "Oct 12 – Oct 18"
   const dateRangeStr = useMemo(() => {
@@ -98,10 +106,13 @@ export default function WeeklyLeaderboard({
 
             <div className="mt-5">
               <p className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
-                {formatHours(totalLogged)}
+                {formatHours(totalCredited)}
               </p>
               <p className="mt-1.5 text-xs sm:text-[13px] font-medium text-slate-500">
-                logged of {formatHours(totalRequired)} required by the team
+                credited of {formatHours(totalRequired)} required by the team
+              </p>
+              <p className="mt-1 text-[11px] font-medium text-slate-400">
+                {formatHours(totalRecorded)} recorded this week
               </p>
             </div>
           </div>
@@ -140,10 +151,11 @@ export default function WeeklyLeaderboard({
               <div className="flex flex-col gap-3.5 mt-1">
                 {rankedEmployees.map((emp, idx) => {
                   const rank = idx + 1;
-                  const logged = creditedByEmployee[emp.id] ?? 0;
+                  const credited = creditedByEmployee[emp.id] ?? 0;
+                  const recorded = recordedByEmployee[emp.id] ?? 0;
                   const required = emp.required_weekly_hours ?? 0;
-                  const pct = creditedPercent(logged, required);
-                  const shortHours = Math.max(0, required - logged);
+                  const pct = creditedPercent(credited, required);
+                  const shortHours = Math.max(0, required - credited);
                   const isClockedIn = activeSet.has(emp.id);
                   const initial = (emp.full_name || "E").charAt(0).toUpperCase();
 
@@ -198,7 +210,7 @@ export default function WeeklyLeaderboard({
                       <div className="flex-1 min-w-[140px] flex flex-col gap-1.5">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-semibold text-slate-700">
-                            {formatHours(logged)} / {formatHours(required)}
+                            {formatHours(credited)} credited / {formatHours(required)}
                           </span>
                           <span className="font-bold text-blue-600">{formatPercent(pct)}</span>
                         </div>
@@ -209,6 +221,10 @@ export default function WeeklyLeaderboard({
                             style={{ width: `${pct}%` }}
                           />
                         </div>
+
+                        <span className="text-[10.5px] font-medium text-slate-400">
+                          {formatHours(recorded)} recorded
+                        </span>
                       </div>
 
                       {/* Warning Badge / Remaining Hours */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties } from "react";
-import { LayoutGrid, List, Search } from "lucide-react";
+import { AlertTriangle, LayoutGrid, List, Search } from "lucide-react";
 import { Profile } from "@/lib/types";
 import AttendanceTable, { type AttendanceRow } from "./AttendanceTable";
 import DatePicker from "./DatePicker";
@@ -14,11 +14,17 @@ export interface WorkforceViewProps {
   initialView: "card" | "list";
   date: string;
   employees: Profile[];
+  /** Credited hours for the current week (drives every progress bar). */
   creditedByEmployee: Record<string, number>;
+  /** Actually recorded hours for the current week (shown as context only). */
+  recordedByEmployee: Record<string, number>;
   activeEmployeeIds: string[];
   weekStart: string;
   weekEnd: string;
   attendanceRows: AttendanceRow[];
+  timezone: string;
+  /** Query failure text; when set the numbers below cannot be trusted. */
+  loadError?: string | null;
 }
 
 /** Segmented Card/List switch. Client state only — switching never navigates. */
@@ -71,10 +77,13 @@ export default function WorkforceView({
   date,
   employees,
   creditedByEmployee,
+  recordedByEmployee,
   activeEmployeeIds,
   weekStart,
   weekEnd,
   attendanceRows,
+  timezone,
+  loadError = null,
 }: WorkforceViewProps) {
   const [view, setView] = useState<"card" | "list">(initialView);
   const [searchQuery, setSearchQuery] = useState("");
@@ -92,6 +101,19 @@ export default function WorkforceView({
 
   return (
     <div className="flex flex-col gap-6">
+      {loadError && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-semibold text-rose-700"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+          <span>
+            Some workforce data couldn&rsquo;t be loaded, so these figures may be
+            incomplete. {loadError}
+          </span>
+        </div>
+      )}
+
       {view === "card" ? (
         <>
           {/* Weekly summary */}
@@ -99,6 +121,7 @@ export default function WorkforceView({
             <WeeklyLeaderboard
               employees={employees}
               creditedByEmployee={creditedByEmployee}
+              recordedByEmployee={recordedByEmployee}
               activeEmployeeIds={activeEmployeeIds}
               weekStart={weekStart}
               weekEnd={weekEnd}
@@ -136,6 +159,7 @@ export default function WorkforceView({
           <EmployeeCards
             employees={filteredEmployees}
             creditedByEmployee={creditedByEmployee}
+            recordedByEmployee={recordedByEmployee}
             activeEmployeeIds={activeEmployeeIds}
             searchQuery={searchQuery}
           />
@@ -152,7 +176,7 @@ export default function WorkforceView({
           </div>
 
           {/* Attendance table */}
-          <AttendanceTable rows={attendanceRows} />
+          <AttendanceTable rows={attendanceRows} timezone={timezone} />
         </>
       )}
     </div>

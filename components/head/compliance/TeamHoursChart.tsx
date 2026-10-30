@@ -13,8 +13,8 @@ export interface TeamHoursChartProps {
 /**
  * Team hours by day. These are real session hours (including an open shift
  * up to the fetch time), while the ring/cards above use credited hours.
- * Future days are dashed placeholders, and the thin white line is the
- * team's combined daily target.
+ * Every day uses the same track; future days simply have no bar yet. The
+ * thin dashed line is the team's combined daily target.
  */
 export default function TeamHoursChart({ data }: TeamHoursChartProps) {
   const { team, days, isCurrentWeek } = data;
@@ -99,14 +99,7 @@ export default function TeamHoursChart({ data }: TeamHoursChartProps) {
               <div className={styles.chartTrackWrap}>
                 <div
                   className={styles.chartTrack}
-                  style={
-                    day.isFuture
-                      ? {
-                          background: "transparent",
-                          border: "1.5px dashed #D5E0F5",
-                        }
-                      : { background: "#EDF2FB", border: "0" }
-                  }
+                  style={{ background: "#EDF2FB", border: "0" }}
                 >
                   {!day.isFuture && (
                     <div

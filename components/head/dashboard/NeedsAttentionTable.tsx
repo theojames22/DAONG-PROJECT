@@ -21,9 +21,10 @@ function initials(name: string | null): string {
     .toUpperCase();
 }
 
-function timeOnly(iso: string | null): string {
+function timeOnly(iso: string | null, timezone: string): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleTimeString("en-US", {
+    timeZone: timezone,
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -44,9 +45,11 @@ const GRID = "grid-cols-[1.5fr_1fr_1fr_1fr]";
 export default function NeedsAttentionTable({
   rows,
   error = false,
+  timezone = "Asia/Manila",
 }: {
   rows: NeedsAttentionRow[];
   error?: boolean;
+  timezone?: string;
 }) {
   const isClear = !error && rows.length === 0;
 
@@ -146,12 +149,12 @@ export default function NeedsAttentionTable({
 
                 {/* Time in */}
                 <span className="text-slate-600">
-                  {timeOnly(row.sessions[0]?.time_in ?? null)}
+                  {timeOnly(row.sessions[0]?.time_in ?? null, timezone)}
                 </span>
 
                 {/* Time out — every listed row has clocked out. */}
                 <span className="text-slate-600">
-                  {timeOnly(lastSession?.time_out ?? null)}
+                  {timeOnly(lastSession?.time_out ?? null, timezone)}
                 </span>
 
                 {/* Output — missing by definition for every listed row. */}

@@ -84,7 +84,7 @@ export default function WorkforceHeader({
           aria-label="Settings"
           className={`flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 ${styles.iconBtn}`}
         >
-          <SlidersHorizontal className="h-4 w-4" />
+          <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={2.2} />
         </button>
       </div>
 

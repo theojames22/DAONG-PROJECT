@@ -89,11 +89,11 @@ export default async function WorkforcePage({
   );
 
   const [
-    { data: profilesData },
-    { data: sessionsData },
-    { data: weekHoursData },
-    { data: selectedWeekHoursData },
-    { data: outputsData },
+    { data: profilesData, error: profilesError },
+    { data: sessionsData, error: sessionsError },
+    { data: weekHoursData, error: weekHoursError },
+    { data: selectedWeekHoursData, error: selectedWeekHoursError },
+    { data: outputsData, error: outputsError },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -133,10 +133,16 @@ export default async function WorkforcePage({
   const selectedWeekHours = (selectedWeekHoursData ?? []) as WeekHours[];
   const dateOutputs = (outputsData ?? []) as unknown as OutputWithReviewer[];
 
-  // ---- Card View data: current-week credited hours + who is on the clock ----
+  // ---- Card View data: current-week credited + recorded hours ----
+  // Recorded (`attendance_hours`) is what the time clock produced; credited
+  // (`credited_hours`) is the subset that counts because the day has a
+  // submitted output. Both views show both numbers, and every progress ring
+  // or bar is driven by credited hours.
   const creditedByEmployee: Record<string, number> = {};
+  const recordedByEmployee: Record<string, number> = {};
   for (const row of weekHours) {
     creditedByEmployee[row.employee_id] = Number(row.credited_hours) || 0;
+    recordedByEmployee[row.employee_id] = Number(row.attendance_hours) || 0;
   }
 
   const activeEmployeeIds = Array.from(
@@ -214,6 +220,11 @@ export default async function WorkforcePage({
     };
   });
 
+  // A failed read must never masquerade as a real zero. The view shows an
+  // explicit banner instead of silently rendering empty/zeroed cards.
+  const dataError =
+    profilesError ?? sessionsError ?? weekHoursError ?? selectedWeekHoursError ?? outputsError;
+
   // Decorative background: 8 stacked wavy strokes fading .55 → .2.
   const waveOpacities = [0.55, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2];
   const wavePath =
@@ -238,7 +249,10 @@ export default async function WorkforcePage({
 
       <div className={styles.content}>
         {/* Shared header — present in both Card and List views */}
-        <div className={styles.enter} style={{ "--wf-delay": "0s" } as CSSProperties}>
+        <div
+          className={`relative z-30 ${styles.enter}`}
+          style={{ "--wf-delay": "0s" } as CSSProperties}
+        >
           <WorkforceHeader
             adminId={user.id}
             adminName={profile.full_name || "Head"}
@@ -255,10 +269,13 @@ export default async function WorkforcePage({
           date={date}
           employees={employees}
           creditedByEmployee={creditedByEmployee}
+          recordedByEmployee={recordedByEmployee}
           activeEmployeeIds={activeEmployeeIds}
           weekStart={weekStart}
           weekEnd={weekEnd}
           attendanceRows={attendanceRows}
+          timezone={timezone}
+          loadError={dataError?.message ?? null}
         />
       </div>
     </div>

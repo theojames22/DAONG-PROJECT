@@ -91,6 +91,11 @@
 /* ---------- Header ------------------------------------------------------ */
 
 .header {
+  position: relative;
+  /* The header owns the notification dropdown. Without an explicit stacking
+     level the later hero cards paint over it (the .rise animation creates a
+     stacking context on each sibling). */
+  z-index: 40;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -235,21 +240,22 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   padding: 0;
-  border: 0;
+  border: 1px solid #e2e8f0;
   border-radius: 50%;
   background: #ffffff;
-  color: #2a3650;
+  color: #475569;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(20, 40, 90, 0.06),
-    0 8px 20px -12px rgba(20, 40, 90, 0.3);
-  transition: color 0.18s ease, transform 0.18s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition: color 0.18s ease, border-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .roundBtn:hover {
   color: #2563eb;
+  border-color: #bfdbfe;
   transform: translateY(-2px);
 }
 
@@ -260,19 +266,20 @@
 }
 
 .iconScope > div > button {
-  width: 46px;
-  height: 46px;
-  border: 0;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e2e8f0;
   border-radius: 999px;
   background: #ffffff;
-  color: #2a3650;
-  box-shadow: 0 1px 2px rgba(20, 40, 90, 0.06),
-    0 8px 20px -12px rgba(20, 40, 90, 0.3);
-  transition: color 0.18s ease, transform 0.18s ease;
+  color: #475569;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition: color 0.18s ease, border-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .iconScope > div > button:hover {
   color: #2563eb;
+  border-color: #bfdbfe;
   transform: translateY(-2px);
 }
 

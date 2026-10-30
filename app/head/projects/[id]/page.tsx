@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedProfile, ProfileMissingError } from "@/lib/auth-utils";
 import { USER_ROLES } from "@/lib/constants";
 import { Notification, Project, ProjectSubmission } from "@/lib/types";
+import { getAppTimezone } from "@/lib/report/queries";
 import PageHeader from "@/components/ui/PageHeader";
 import ProjectApprovalPanel from "@/components/head/ProjectApprovalPanel";
 
@@ -47,6 +48,7 @@ export default async function ProjectDetailPage({
   }
 
   const supabase = await createClient();
+  const timezone = await getAppTimezone(supabase);
 
   // The project is mirrored from its output by a database trigger. If it is
   // missing, show 404 rather than running a full-table reconciliation with
@@ -88,7 +90,7 @@ export default async function ProjectDetailPage({
           destination beats relying on browser history. */}
       <Link
         href="/head/projects"
-        className="neu-icon-btn neu-focus inline-flex w-fit items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold text-accent-dark transition-colors hover:text-accent"
+        className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-blue-200 hover:text-blue-600"
       >
         <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
         Back to projects
@@ -101,6 +103,7 @@ export default async function ProjectDetailPage({
         project={{ ...(project as unknown as Project), submission }}
         adminId={user.id}
         initialMessages={(messages ?? []) as unknown as Notification[]}
+        timezone={timezone}
       />
     </div>
   );

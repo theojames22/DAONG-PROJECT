@@ -18,15 +18,31 @@ interface ProjectApprovalPanelProps {
   project: Project;
   adminId: string;
   initialMessages: Notification[];
+  /** App timezone so server-rendered dates match the browser. */
+  timezone?: string;
 }
 
 /** Written bodies are shown in full in the viewer; this is the inline taster. */
 const EXCERPT_LIMIT = 420;
+const CARD =
+  "rounded-3xl border border-slate-100 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]";
+
+function formatDateTime(iso: string, timezone: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    timeZone: timezone,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export default function ProjectApprovalPanel({
   project,
   adminId,
   initialMessages,
+  timezone = "Asia/Manila",
 }: ProjectApprovalPanelProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -166,24 +182,24 @@ export default function ProjectApprovalPanel({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] lg:items-start">
       {/* ===== Decision card ===== */}
-      <div className="neu-raised rounded-neu p-5">
+      <div className={`${CARD} p-5 sm:p-6`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="font-display text-[17px] font-bold text-ink">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-bold leading-tight text-slate-900">
                 {project.title}
               </h2>
               <ProjectStatusPill status={status} />
             </div>
-            <p className="mt-1 text-[12.5px] text-ink-muted">
+            <p className="mt-1.5 text-[12.5px] text-slate-500">
               Submitted by {project.submitter?.full_name || "Unknown"}
               {project.submitter?.position ? ` · ${project.submitter.position}` : ""} on{" "}
-              {new Date(project.created_at).toLocaleString()}
+              {formatDateTime(project.created_at, timezone)}
             </p>
             {submission?.file_size ? (
-              <p className="mt-0.5 text-[11px] text-ink-subtle">
+              <p className="mt-0.5 text-[11px] text-slate-400">
                 {submission.file_name || "Attachment"}
                 {submission.file_mime_type ? ` · ${submission.file_mime_type}` : ""}
                 {` · ${formatFileSize(submission.file_size)}`}
@@ -202,16 +218,16 @@ export default function ProjectApprovalPanel({
             date={project.created_at}
             statusSlot={<ProjectStatusPill status={status} />}
             label={actionLabel}
-            className="btn-secondary neu-focus shrink-0"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold text-blue-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-blue-300 hover:bg-blue-50"
           />
         </div>
 
         {project.description && (
-          <div className="mt-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+          <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Notes from the submitter
             </p>
-            <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink-muted">
+            <p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-600">
               {project.description}
             </p>
           </div>
@@ -219,18 +235,18 @@ export default function ProjectApprovalPanel({
 
         {/* Written output — inline excerpt, full text in the viewer. */}
         {artifactType === "written" && (
-          <div className="mt-4 rounded-xl border border-border bg-base-light/50 p-3.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+          <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Written output
             </p>
             {writtenContent ? (
-              <p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink">
+              <p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-700">
                 {writtenContent.length > EXCERPT_LIMIT
                   ? `${writtenContent.slice(0, EXCERPT_LIMIT).trimEnd()}…`
                   : writtenContent}
               </p>
             ) : (
-              <p className="mt-1.5 text-[12.5px] text-ink-subtle">
+              <p className="mt-1.5 text-[12.5px] text-slate-400">
                 This submission has no written content.
               </p>
             )}
@@ -242,14 +258,14 @@ export default function ProjectApprovalPanel({
           <img
             src={`/api/projects/${encodeURIComponent(project.id)}/file`}
             alt={project.title}
-            className="mt-4 max-h-72 w-auto rounded-lg border border-border object-contain"
+            className="mt-4 max-h-80 w-auto rounded-2xl border border-slate-100 object-contain"
           />
         )}
 
         {/* Reviewer notes + decision buttons */}
-        <div className="mt-5 flex flex-col gap-3">
+        <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-muted">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Reviewer notes (sent with the decision)
             </span>
             <textarea
@@ -257,11 +273,11 @@ export default function ProjectApprovalPanel({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Optional feedback for the employee…"
-              className="elev-pressed neu-focus resize-none rounded-xl p-3 text-[13px] text-ink placeholder:text-ink-subtle outline-none"
+              className="resize-none rounded-2xl border border-slate-200 bg-white p-3.5 text-[13px] text-slate-800 placeholder:text-slate-400 outline-none transition-colors focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
             />
           </label>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             {/* Checking is always available — it is the documented way to
                 reopen a finished review. Approve/Reject lock once a final
                 decision exists; the database enforces the same rule. */}
@@ -269,7 +285,7 @@ export default function ProjectApprovalPanel({
               type="button"
               onClick={() => reviewProject("checking")}
               disabled={saving || status === "checking"}
-              className="btn-secondary btn-decision neu-focus"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 shadow-sm transition-colors hover:border-blue-200 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
               title={
                 decisionLocked
                   ? "Reopen this submission for another review"
@@ -289,7 +305,7 @@ export default function ProjectApprovalPanel({
               type="button"
               onClick={() => reviewProject("approved")}
               disabled={saving || decisionLocked}
-              className="btn-primary btn-decision neu-focus"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-blue-600 px-4 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               title={
                 status === "approved"
                   ? "Approve is disabled — this submission is already approved"
@@ -309,7 +325,7 @@ export default function ProjectApprovalPanel({
               type="button"
               onClick={() => reviewProject("rejected")}
               disabled={saving || decisionLocked}
-              className="btn-danger btn-decision neu-focus"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 text-[13px] font-semibold text-rose-600 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
               title={
                 status === "rejected"
                   ? "Reject is disabled — this submission is already rejected"
@@ -326,27 +342,34 @@ export default function ProjectApprovalPanel({
               Reject
             </button>
             {feedback && (
-              <p className="text-[12px] font-semibold text-ink-muted">{feedback}</p>
+              <p className="text-[12px] font-semibold text-slate-500">{feedback}</p>
             )}
           </div>
         </div>
       </div>
 
       {/* ===== Thread with the employee ===== */}
-      <div className="neu-raised rounded-neu p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-accent" />
-          <h3 className="text-[13.5px] font-bold text-ink">
-            Discussion with {project.submitter?.full_name || "employee"}
-          </h3>
+      <div className={`${CARD} flex flex-col p-5 sm:p-6 lg:sticky lg:top-6`}>
+        <div className="mb-4 flex items-center gap-2.5 border-b border-slate-100 pb-4">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <MessageSquare className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="truncate text-[13.5px] font-bold text-slate-900">
+              Discussion with {project.submitter?.full_name || "employee"}
+            </h3>
+            <p className="text-[11.5px] text-slate-400">
+              Notes are visible to the submitter.
+            </p>
+          </div>
         </div>
 
         {messages.length === 0 ? (
-          <p className="py-4 text-[13px] text-ink-muted">
+          <p className="py-6 text-center text-[13px] text-slate-400">
             No messages yet. Send the first note about this project.
           </p>
         ) : (
-          <ul className="mb-4 flex flex-col gap-3">
+          <ul className="mb-4 flex max-h-[420px] flex-col gap-3 overflow-y-auto pr-1">
             {messages.map((m) => {
               const mine = m.sender_id === adminId;
               return (
@@ -355,19 +378,23 @@ export default function ProjectApprovalPanel({
                   className={`flex flex-col ${mine ? "items-end" : "items-start"}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-[12.5px] leading-relaxed ${
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-[12.5px] leading-relaxed ${
                       mine
                         ? "bg-blue-600 text-white"
-                        : "elev-pressed text-ink"
+                        : "border border-slate-100 bg-slate-50 text-slate-700"
                     }`}
                   >
-                    <p className={`mb-0.5 text-[10.5px] font-semibold ${mine ? "text-blue-100" : "text-ink-subtle"}`}>
+                    <p
+                      className={`mb-0.5 text-[10.5px] font-semibold ${
+                        mine ? "text-blue-100" : "text-slate-400"
+                      }`}
+                    >
                       {mine ? "You" : m.sender?.full_name || "Employee"}
                     </p>
                     {m.message}
                   </div>
-                  <span className="mt-0.5 text-[10.5px] text-ink-subtle">
-                    {new Date(m.created_at).toLocaleString()}
+                  <span className="mt-0.5 text-[10.5px] text-slate-400">
+                    {formatDateTime(m.created_at, timezone)}
                   </span>
                 </li>
               );
@@ -375,7 +402,7 @@ export default function ProjectApprovalPanel({
           </ul>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="mt-auto flex items-center gap-2 border-t border-slate-100 pt-4">
           <input
             value={reply}
             onChange={(e) => setReply(e.target.value)}
@@ -383,19 +410,19 @@ export default function ProjectApprovalPanel({
               if (e.key === "Enter") sendReply();
             }}
             placeholder="Write a message to the staff…"
-            className="elev-pressed neu-focus min-w-0 flex-1 rounded-xl px-3 py-2 text-[13px] text-ink placeholder:text-ink-subtle outline-none"
+            className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-800 placeholder:text-slate-400 outline-none transition-colors focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
           />
           <button
             type="button"
             onClick={sendReply}
             disabled={sending || !reply.trim()}
             aria-label="Send message"
-            className="btn-primary neu-focus px-4"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {sending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Send className="h-3.5 w-3.5" />
+              <Send className="h-4 w-4" />
             )}
           </button>
         </div>

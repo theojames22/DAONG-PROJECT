@@ -12,6 +12,7 @@ export interface EmployeeCardsProps {
   /** Employees already filtered by the search box. */
   employees: Profile[];
   creditedByEmployee: Record<string, number>;
+  recordedByEmployee: Record<string, number>;
   activeEmployeeIds: string[];
   /** Used only for the "no matches" empty-state copy. */
   searchQuery: string;
@@ -25,6 +26,7 @@ export interface EmployeeCardsProps {
 export default function EmployeeCards({
   employees,
   creditedByEmployee,
+  recordedByEmployee,
   activeEmployeeIds,
   searchQuery,
 }: EmployeeCardsProps) {
@@ -59,9 +61,12 @@ export default function EmployeeCards({
         {employees.map((emp, index) => {
           const isHead = emp.role === "head";
           const isClockedIn = activeSet.has(emp.id);
-          const logged = creditedByEmployee[emp.id] ?? 0;
+          // Credited drives the ring; recorded is shown beside it so a day
+          // worked without a submitted output is not mistaken for no work.
+          const credited = creditedByEmployee[emp.id] ?? 0;
+          const recorded = recordedByEmployee[emp.id] ?? 0;
           const required = emp.required_weekly_hours ?? (isHead ? 0 : 40);
-          const pct = creditedPercent(logged, required);
+          const pct = creditedPercent(credited, required);
           const initial = (emp.full_name || "E").charAt(0).toUpperCase();
 
           // Circular progress parameters (r=12 -> circumference = 2 * PI * 12 = 75.4)
@@ -207,17 +212,17 @@ export default function EmployeeCards({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline gap-1">
                             <span className="text-[11.5px] font-bold text-slate-900 leading-none">
-                              {formatHours(required)}
+                              {formatHours(credited)}
                             </span>
                             <span className="text-[9.5px] text-slate-400 font-normal leading-none">
-                              / week
+                              / {formatHours(required)}
                             </span>
                           </div>
                           <span className="text-[9px] font-medium text-slate-400 block mt-0.5 leading-none">
-                            required
+                            credited this week
                           </span>
                           <span className="text-[9.5px] font-medium text-slate-500 block mt-1 leading-none truncate">
-                            {formatHours(logged)} logged this week
+                            {formatHours(recorded)} recorded
                           </span>
                         </div>
                       </>

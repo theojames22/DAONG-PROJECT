@@ -384,8 +384,20 @@ export default function EquipmentUsageLog({ admin }: EquipmentUsageLogProps) {
           </p>
         </div>
 
-        {/* Action cluster — the same buttons every admin page uses */}
+        {/* Action cluster — primary action first, then clock, notifications
+            and settings, matching the order used across the Head pages. */}
         <div className="relative z-40 flex flex-wrap items-center gap-2.5 self-start pt-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              logModalOpener.current = e.currentTarget;
+              setLogModalOpen(true);
+            }}
+            className="neu-focus flex h-10 items-center gap-2 rounded-full bg-[#2563EB] px-5 text-[13px] font-semibold text-white shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all hover:bg-[#1D4ED8] hover:shadow-md active:scale-[0.98]"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            Log equipment use
+          </button>
           <LiveClockChip />
           <NotificationBell
             userId={admin.id}
@@ -400,18 +412,7 @@ export default function EquipmentUsageLog({ admin }: EquipmentUsageLogProps) {
             aria-label="Settings & Preferences"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-600 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all hover:border-blue-200 hover:text-blue-600 hover:shadow-md active:scale-95"
           >
-            <SlidersHorizontal className="h-4 w-4" strokeWidth={2.2} />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              logModalOpener.current = e.currentTarget;
-              setLogModalOpen(true);
-            }}
-            className="neu-focus flex h-12 items-center gap-2 rounded-xl bg-[#2563EB] px-5 text-[13.5px] font-semibold text-white shadow-sm transition-all hover:bg-[#1D4ED8] hover:shadow-md active:translate-y-[-1px]"
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.5} />
-            Log equipment use
+            <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={2.2} />
           </button>
         </div>
       </header>

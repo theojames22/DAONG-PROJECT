@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { FALLBACK_TIMEZONE } from "@/lib/time";
 
 export interface TimelineEmployee {
   id: string;
@@ -18,17 +19,41 @@ export interface TimelineCardProps {
   employees: TimelineEmployee[];
   /** Today's sessions keyed by employee id. */
   sessionsByEmployee: Record<string, TimelineSession[]>;
+  /** App timezone (app_settings.timezone) used for every clock reading. */
+  timezone?: string;
 }
 
 const TICKS = [0, 3, 6, 9, 12, 15, 18, 21];
 const MINUTES_PER_DAY = 24 * 60;
 
-function minutesSinceMidnight(d: Date): number {
-  return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+/**
+ * Minutes since local midnight in `zone`.
+ *
+ * Reading `Date#getHours()` uses the host clock, which is UTC on the server
+ * and Asia/Manila in the browser. That difference is exactly what made the
+ * "now" marker disagree during hydration, so both sides resolve the wall
+ * clock through Intl instead.
+ */
+function minutesSinceMidnight(d: Date, zone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+
+  const values: Record<string, number> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") values[part.type] = Number(part.value);
+  }
+
+  return (values.hour ?? 0) * 60 + (values.minute ?? 0) + (values.second ?? 0) / 60;
 }
 
-function formatClock(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], {
+function formatClock(iso: string, zone: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", {
+    timeZone: zone,
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -52,6 +77,7 @@ function initials(name: string | null): string {
 export default function TimelineCard({
   employees,
   sessionsByEmployee,
+  timezone = FALLBACK_TIMEZONE,
 }: TimelineCardProps) {
   const [now, setNow] = useState<Date | null>(null);
 
@@ -61,19 +87,26 @@ export default function TimelineCard({
     return () => clearInterval(id);
   }, []);
 
+  // Null until after hydration: the server cannot know the browser's current
+  // instant, and rendering one during SSR caused React to hydrate a different
+  // `left` percentage. The marker simply appears on the first client tick.
   const nowPct = useMemo(() => {
-    const ref = now ?? new Date();
-    return Math.min(100, Math.max(0, (minutesSinceMidnight(ref) / MINUTES_PER_DAY) * 100));
-  }, [now]);
+    if (!now) return null;
+    return Math.min(
+      100,
+      Math.max(0, (minutesSinceMidnight(now, timezone) / MINUTES_PER_DAY) * 100)
+    );
+  }, [now, timezone]);
 
   const nowLabel = useMemo(() => {
-    const ref = now ?? new Date();
-    return ref.toLocaleTimeString("en-US", {
+    if (!now) return null;
+    return now.toLocaleTimeString("en-US", {
+      timeZone: timezone,
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
     });
-  }, [now]);
+  }, [now, timezone]);
 
   return (
     <section className="relative rounded-3xl border border-slate-100 bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 hover:shadow-[0_8px_30px_-6px_rgba(0,0,0,0.08)] enter-up enter-d4">
@@ -143,23 +176,26 @@ export default function TimelineCard({
                 ))}
               </div>
 
-              {/* "Now" vertical indicator line and time pill */}
-              <div
-                className="pointer-events-none absolute inset-y-0 left-48 sm:left-56 right-4 z-20"
-                aria-hidden="true"
-              >
+              {/* "Now" vertical indicator line and time pill — client-only so
+                  the server and browser never disagree on the time. */}
+              {nowPct !== null && nowLabel !== null && (
                 <div
-                  className="absolute top-0 bottom-0 transition-all duration-1000 ease-linear"
-                  style={{ left: `${nowPct}%` }}
+                  className="pointer-events-none absolute inset-y-0 left-48 sm:left-56 right-4 z-20"
+                  aria-hidden="true"
                 >
-                  {/* Top time badge */}
-                  <span className="absolute -top-7 -translate-x-1/2 rounded-full bg-blue-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm whitespace-nowrap">
-                    {nowLabel}
-                  </span>
-                  {/* Vertical bar */}
-                  <div className="h-full w-[2px] bg-blue-600 shadow-sm" />
+                  <div
+                    className="absolute top-0 bottom-0 transition-all duration-1000 ease-linear"
+                    style={{ left: `${nowPct}%` }}
+                  >
+                    {/* Top time badge */}
+                    <span className="absolute -top-7 -translate-x-1/2 rounded-full bg-blue-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm whitespace-nowrap">
+                      {nowLabel}
+                    </span>
+                    {/* Vertical bar */}
+                    <div className="h-full w-[2px] bg-blue-600 shadow-sm" />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Employee Rows */}
               {employees.map((employee, idx) => {
@@ -198,7 +234,7 @@ export default function TimelineCard({
                             ? "No punch yet"
                             : hasOpen
                             ? "On the clock"
-                            : `Clocked in ${formatClock(sessions[0].time_in)}`}
+                            : `Clocked in ${formatClock(sessions[0].time_in, timezone)}`}
                         </p>
                       </div>
                     </div>
@@ -217,15 +253,31 @@ export default function TimelineCard({
 
                       {/* Active / Recorded punch bars */}
                       {sessions.map((session, sIdx) => {
-                        const startMin = minutesSinceMidnight(new Date(session.time_in));
+                        const startMin = minutesSinceMidnight(
+                          new Date(session.time_in),
+                          timezone
+                        );
                         const endMin = session.time_out
-                          ? minutesSinceMidnight(new Date(session.time_out))
-                          : minutesSinceMidnight(now ?? new Date());
+                          ? minutesSinceMidnight(
+                              new Date(session.time_out),
+                              timezone
+                            )
+                          : now
+                          ? minutesSinceMidnight(now, timezone)
+                          : startMin;
 
-                        const left = Math.max(0, Math.min(100, (startMin / MINUTES_PER_DAY) * 100));
+                        const left = Math.max(
+                          0,
+                          Math.min(100, (startMin / MINUTES_PER_DAY) * 100)
+                        );
                         const width = Math.max(
                           0.8,
-                          Math.min(100 - left, ((Math.max(startMin, endMin) - startMin) / MINUTES_PER_DAY) * 100)
+                          Math.min(
+                            100 - left,
+                            ((Math.max(startMin, endMin) - startMin) /
+                              MINUTES_PER_DAY) *
+                              100
+                          )
                         );
 
                         return (
@@ -233,8 +285,13 @@ export default function TimelineCard({
                             key={`${session.time_in}-${sIdx}`}
                             className="absolute top-1/2 h-3.5 -translate-y-1/2 rounded-full bg-emerald-500 shadow-sm transition-all duration-500"
                             style={{ left: `${left}%`, width: `${width}%` }}
-                            title={`${formatClock(session.time_in)} – ${
-                              session.time_out ? formatClock(session.time_out) : "now"
+                            title={`${formatClock(
+                              session.time_in,
+                              timezone
+                            )} – ${
+                              session.time_out
+                                ? formatClock(session.time_out, timezone)
+                                : "now"
                             }`}
                           />
                         );

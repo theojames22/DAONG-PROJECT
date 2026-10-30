@@ -18,6 +18,15 @@ import {
   validateSubmission,
 } from "../lib/outputs";
 import { csvEscape } from "../lib/report/export";
+import {
+  authErrorStatus,
+  isMissingSessionError,
+  isValidEmail,
+  normalizeEmail,
+  passwordUpdateMessage,
+  resetRequestMessage,
+  validateNewPassword,
+} from "../lib/auth/reset";
 
 test("dateKeyIn uses the app timezone, not the host timezone", () => {
   // 16:30 UTC is already the next calendar day in Manila.
@@ -177,4 +186,65 @@ test("CSV export neutralises spreadsheet formulas", () => {
   assert.equal(csvEscape('=HYPERLINK("https://evil")'), `"'=HYPERLINK(""https://evil"")"`);
   assert.equal(csvEscape("+1+1"), "'+1+1");
   assert.equal(csvEscape("@SUM(A1:A2)"), "'@SUM(A1:A2)");
+});
+
+test("reset email validation trims and rejects malformed addresses", () => {
+  assert.equal(normalizeEmail("  staff@daong.ph  "), "staff@daong.ph");
+  assert.equal(isValidEmail("  staff@daong.ph  "), true);
+  assert.equal(isValidEmail("staff@daong"), false);
+  assert.equal(isValidEmail("staff daong.ph"), false);
+  assert.equal(isValidEmail(""), false);
+  assert.equal(isValidEmail("@daong.ph"), false);
+});
+
+test("reset password policy matches the existing rule and never weakens it", () => {
+  assert.match(validateNewPassword("short1") ?? "", /8 characters/);
+  assert.equal(
+    validateNewPassword(`${"a".repeat(71)}12`),
+    "Password must be 72 characters or fewer."
+  );
+  assert.equal(
+    validateNewPassword("12345678"),
+    "Password must include at least one letter."
+  );
+  assert.equal(
+    validateNewPassword("abcdefgh"),
+    "Password must include at least one number."
+  );
+  assert.equal(validateNewPassword("sailboat7"), null);
+});
+
+test("auth errors are classified without leaking provider messages", () => {
+  assert.equal(authErrorStatus({ status: 429 }), 429);
+  assert.equal(authErrorStatus({ status: "429" }), undefined);
+
+  assert.match(resetRequestMessage({ status: 429 }), /too many/i);
+  assert.match(
+    resetRequestMessage({ name: "AuthRetryableFetchError", status: 0 }),
+    /connection/i
+  );
+  assert.equal(
+    resetRequestMessage({ message: "some internal provider detail" }),
+    "We couldn't process that request right now. Please try again."
+  );
+
+  assert.equal(
+    isMissingSessionError({ name: "AuthSessionMissingError", status: 400 }),
+    true
+  );
+  assert.equal(isMissingSessionError({ status: 401 }), true);
+  assert.equal(isMissingSessionError({ status: 403 }), true);
+  assert.equal(isMissingSessionError({ code: "refresh_token_not_found" }), true);
+  assert.equal(isMissingSessionError({ code: "bad_jwt", status: 403 }), true);
+  assert.equal(isMissingSessionError({ status: 400 }), false);
+
+  assert.match(
+    passwordUpdateMessage({ code: "same_password" }),
+    /haven't used before/i
+  );
+  assert.match(passwordUpdateMessage({ code: "weak_password" }), /8–72/);
+  assert.equal(
+    passwordUpdateMessage({ message: "raw backend error" }),
+    "We couldn't update your password. Please try again."
+  );
 });

@@ -345,7 +345,7 @@ export default function EmployeeDrawer({
                   <div
                     className={styles.drawerDayTrack}
                     style={{
-                      background: day.isFuture ? "#F1F5FB" : "#E6EEFB",
+                      background: "#E6EEFB",
                     }}
                   >
                     {!day.isFuture && (

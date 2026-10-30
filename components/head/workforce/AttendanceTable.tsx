@@ -99,8 +99,12 @@ function initials(name: string | null) {
     .toUpperCase();
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function formatTime(iso: string, timezone: string) {
+  return new Date(iso).toLocaleTimeString("en-US", {
+    timeZone: timezone,
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function sessionDuration(s: Session) {
@@ -111,9 +115,17 @@ function sessionDuration(s: Session) {
 
 type FilterTab = "all" | "active" | "none";
 
-export default function AttendanceTable({ rows }: { rows: AttendanceRow[] }) {
+export default function AttendanceTable({
+  rows,
+  timezone = "Asia/Manila",
+}: {
+  rows: AttendanceRow[];
+  timezone?: string;
+}) {
   const router = useRouter();
-  const supabase = createClient();
+  // Stable client instance — an inline createClient() re-subscribed realtime
+  // on every render.
+  const supabase = useMemo(() => createClient(), []);
   const [filter, setFilter] = useState<FilterTab>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [, forceTick] = useState(0);
@@ -278,10 +290,13 @@ export default function AttendanceTable({ rows }: { rows: AttendanceRow[] }) {
             const sub = outputSubline(row);
             const SubIcon = sub.icon;
 
+            const creditedWeek = row.creditedHours ?? 0;
+            // Compliance progress is always credited hours. Recorded hours
+            // (row.hoursWeek) are shown below it as context.
             const weekPct = Math.min(
               100,
               row.requiredWeeklyHours > 0
-                ? (row.hoursWeek / row.requiredWeeklyHours) * 100
+                ? (creditedWeek / row.requiredWeeklyHours) * 100
                 : 0
             );
 
@@ -361,24 +376,27 @@ export default function AttendanceTable({ rows }: { rows: AttendanceRow[] }) {
                         </p>
                         <p className="text-xs text-slate-400 mt-0.5">
                           {openSession
-                            ? `Since ${formatTime(openSession.time_in)}`
+                            ? `Since ${formatTime(openSession.time_in, timezone)}`
                             : firstSession
-                            ? `Clocked in ${formatTime(firstSession.time_in)}`
+                            ? `Clocked in ${formatTime(
+                                firstSession.time_in,
+                                timezone
+                              )}`
                             : "Completed shift"}
                         </p>
                       </div>
                     )}
                   </div>
 
-                  {/* 4. Weekly progress: Ratio + Progress Bar */}
+                  {/* 4. Weekly progress: credited ratio + progress bar */}
                   <div>
-                    {row.statusKind === "none" && row.hoursWeek === 0 ? (
+                    {row.hoursWeek === 0 && creditedWeek === 0 ? (
                       <span className="text-sm text-slate-400 font-normal">—</span>
                     ) : (
                       <div>
                         <p className="text-xs font-semibold text-slate-800">
-                          {row.hoursWeek.toFixed(1)} / {row.requiredWeeklyHours.toFixed(1)}h (
-                          {Math.round(weekPct)}%)
+                          {creditedWeek.toFixed(1)} credited /{" "}
+                          {row.requiredWeeklyHours.toFixed(1)}h ({Math.round(weekPct)}%)
                         </p>
                         <div className="mt-1.5 h-1.5 w-36 overflow-hidden rounded-full bg-slate-100">
                           <div
@@ -386,6 +404,9 @@ export default function AttendanceTable({ rows }: { rows: AttendanceRow[] }) {
                             style={{ width: `${weekPct}%` }}
                           />
                         </div>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          {row.hoursWeek.toFixed(1)}h recorded
+                        </p>
                       </div>
                     )}
                   </div>
@@ -440,8 +461,10 @@ export default function AttendanceTable({ rows }: { rows: AttendanceRow[] }) {
                             className="flex items-center justify-between text-xs text-slate-700"
                           >
                             <span>
-                              {formatTime(s.time_in)} –{" "}
-                              {s.time_out ? formatTime(s.time_out) : "Still clocked in"}
+                              {formatTime(s.time_in, timezone)} –{" "}
+                              {s.time_out
+                                ? formatTime(s.time_out, timezone)
+                                : "Still clocked in"}
                             </span>
                             <span className="font-medium text-slate-500">
                               {sessionDuration(s)}

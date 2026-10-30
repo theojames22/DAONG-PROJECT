@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -31,7 +31,10 @@ const REFRESH_DEBOUNCE_MS = 350;
  */
 export default function DashboardLiveSync() {
   const router = useRouter();
-  const supabase = createClient();
+  // One client per mount. Creating it inline returned a new instance on every
+  // render, so the subscription effect tore down and re-created the realtime
+  // channel continuously.
+  const supabase = useMemo(() => createClient(), []);
   const timerRef = useRef<number | undefined>(undefined);
 
   const scheduleRefresh = useCallback(() => {

@@ -320,14 +320,7 @@ export default function ComplianceRoster({
                       >
                         <div
                           className={styles.miniTrack}
-                          style={
-                            day.isFuture
-                              ? {
-                                  background: "transparent",
-                                  border: "1.5px dashed #D5E0F5",
-                                }
-                              : { background: "#E9EFFA", border: "0" }
-                          }
+                          style={{ background: "#E9EFFA", border: "0" }}
                         >
                           {!day.isFuture && (
                             <div

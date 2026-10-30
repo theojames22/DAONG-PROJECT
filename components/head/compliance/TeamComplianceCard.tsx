@@ -56,16 +56,15 @@ export default function TeamComplianceCard({
         ? `${team.belowCount} of ${team.trackedCount} below required hours`
         : `${team.belowCount} of ${team.trackedCount} finished short`;
 
-  const toLog = Math.max(0, team.requiredHours - team.loggedHours);
+  // Chips stay on the same metric as the ring (credited hours), so a week
+  // with logged time but no submitted output reads consistently.
   const secondChip =
     team.requiredHours <= 0
       ? "Team progress is not tracked"
       : isCurrentWeek
-        ? toLog > 0
-          ? `${toLog.toFixed(1)}h still to log`
-          : team.remainingHours > 0
-            ? "Hours logged, outputs pending"
-            : "All targets met"
+        ? team.remainingHours > 0
+          ? `${team.remainingHours.toFixed(1)}h still to credit`
+          : "All targets met"
         : team.remainingHours > 0
           ? `${team.remainingHours.toFixed(1)}h short of target`
           : "All targets met";
@@ -127,11 +126,17 @@ export default function TeamComplianceCard({
               {displayPercent}
               <span className={styles.ringPct}>%</span>
             </span>
-            <span className={styles.ringSub}>of required hours</span>
+            <span className={styles.ringSub}>of required credited hours</span>
           </div>
         </div>
 
         <dl className={styles.heroStats}>
+          <div className={styles.heroStat}>
+            <dt className={styles.heroStatLabel}>Hours credited</dt>
+            <dd className={styles.heroLogged}>
+              {formatHours(team.creditedHours)}
+            </dd>
+          </div>
           <div className={styles.heroStat}>
             <dt className={styles.heroStatLabel}>Hours logged</dt>
             <dd className={styles.heroLogged}>

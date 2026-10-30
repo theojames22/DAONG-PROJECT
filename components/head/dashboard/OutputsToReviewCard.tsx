@@ -3,10 +3,15 @@ import { ArrowRight, FileText } from "lucide-react";
 
 export interface OutputsToReviewCardProps {
   count: number;
+  /** True when the pending-review count query failed — the figure is unknown. */
+  error?: boolean;
 }
 
 /** Card 3 — Outputs to Review summary card matching Image 2 */
-export default function OutputsToReviewCard({ count }: OutputsToReviewCardProps) {
+export default function OutputsToReviewCard({
+  count,
+  error = false,
+}: OutputsToReviewCardProps) {
   return (
     <section className="group relative flex flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-blue-600 to-blue-700 p-6 text-white shadow-[0_8px_25px_-6px_rgba(37,99,235,0.4)] transition-all duration-300 hover:shadow-[0_12px_32px_-6px_rgba(37,99,235,0.5)] hover:-translate-y-0.5 enter-up enter-d3">
       {/* Decorative concentric arcs matching reference image */}
@@ -34,14 +39,14 @@ export default function OutputsToReviewCard({ count }: OutputsToReviewCardProps)
       {/* Main Count Figure */}
       <div className="relative my-3">
         <p className="text-6xl font-extrabold tracking-tight text-white tabular-nums">
-          {count}
+          {error ? "—" : count}
         </p>
       </div>
 
       {/* Bottom Action Row */}
       <div className="relative flex items-center justify-between gap-3 pt-1">
         <p className="text-sm font-medium text-blue-100">
-          Awaiting your review
+          {error ? "Count unavailable" : "Awaiting your review"}
         </p>
 
         <Link

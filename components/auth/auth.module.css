@@ -1,0 +1,69 @@
+/* Motion for the password-recovery cards.
+   Everything else is Tailwind; only keyframes and the `data-app-ready` gate
+   need to live in CSS so they stay scoped to the auth screens. */
+
+.enter {
+  opacity: 1;
+}
+
+/* Matches the login card's entrance, gated on the same readiness flag so a
+   direct page load never animates behind the opening overlay. */
+:global(html[data-app-ready="true"]) .enter {
+  animation: authCardIn 440ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms both;
+}
+
+/* State swaps (form → confirmation → success) — a short fade, never a
+   re-run of the whole card animation. */
+.panel {
+  animation: authPanelIn 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Inline validation / request feedback. */
+.feedback {
+  animation: authFeedbackIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes authCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes authPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes authFeedbackIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    opacity: 1;
+  }
+
+  :global(html[data-app-ready="true"]) .enter,
+  .panel,
+  .feedback {
+    animation: none !important;
+  }
+}

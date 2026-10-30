@@ -111,8 +111,14 @@ export default function AttendanceRing({
       {/* Centre figure */}
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
         <span className="font-extrabold text-[26px] leading-none tracking-tight text-slate-900 tabular-nums">
-          {present}
-          <span className="text-slate-400 font-bold">/{safeTotal}</span>
+          {safeTotal > 0 ? (
+            <>
+              {present}
+              <span className="text-slate-400 font-bold">/{safeTotal}</span>
+            </>
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
         </span>
         <span className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
           present

@@ -85,7 +85,7 @@ export default async function HeadPage({
   const todayEnd = dayEndISO(today, timezone);
 
   const [
-    { data: profiles },
+    { data: profiles, error: profilesError },
     { data: sessions, error: sessionsError },
     { data: outputs, error: outputsError },
     { data: weekHours, error: weekHoursError },
@@ -249,10 +249,15 @@ export default async function HeadPage({
     .slice(0, 3);
 
   const weekLabel = formatWeekBadge(weekStart, weekEnd);
-  const leaderboardError = Boolean(sessionsError || weekHoursError);
+  // Each card owns the queries it actually reads. A failed profile read makes
+  // the present/absent split unknowable; a failed output read makes the
+  // review count unknowable; the leaderboard only needs profiles + credits.
+  const todayAttendanceError = Boolean(profilesError || sessionsError);
+  const outputsToReviewError = Boolean(pendingReviewError);
+  const leaderboardError = Boolean(profilesError || weekHoursError);
   // If today's attendance/output reads failed, the Needs Attention section
   // must say so rather than claim "All clear".
-  const needsAttentionError = Boolean(sessionsError || outputsError);
+  const needsAttentionError = Boolean(profilesError || sessionsError || outputsError);
 
   const headName = profile.full_name || "Head";
 
@@ -277,17 +282,26 @@ export default async function HeadPage({
           presentCount={presentCount}
           absentCount={absentCount}
           totalEmployees={employees.length}
+          error={todayAttendanceError}
         />
         <NeedsAttentionCard count={needsAttention.length} error={needsAttentionError} />
-        <OutputsToReviewCard count={pendingReviewCount} />
+        <OutputsToReviewCard count={pendingReviewCount} error={outputsToReviewError} />
       </div>
 
       {/* 24-hour attendance timeline */}
-      <TimelineCard employees={timelineEmployees} sessionsByEmployee={sessionsByEmployee} />
+      <TimelineCard
+        employees={timelineEmployees}
+        sessionsByEmployee={sessionsByEmployee}
+        timezone={timezone}
+      />
 
       {/* Needs attention + weekly leaderboard (2 columns) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <NeedsAttentionTable rows={attentionRows} error={needsAttentionError} />
+        <NeedsAttentionTable
+          rows={attentionRows}
+          error={needsAttentionError}
+          timezone={timezone}
+        />
         <WeeklyLeaderboardCard
           entries={leaderboardEntries}
           weekLabel={weekLabel}

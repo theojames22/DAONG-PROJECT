@@ -121,7 +121,7 @@ export default function ComplianceHeader({
           aria-label="Settings"
           title="Settings"
         >
-          <SlidersHorizontal size={20} strokeWidth={2} />
+          <SlidersHorizontal size={18} strokeWidth={2.2} />
         </button>
       </div>
 

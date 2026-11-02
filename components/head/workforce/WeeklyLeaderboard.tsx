@@ -8,7 +8,7 @@ import ModalShell from "@/components/shared/ModalShell";
 import styles from "@/app/head/workforce/workforce.module.css";
 
 /** Default number of ranked employees shown before the full list is opened. */
-const DEFAULT_VISIBLE = 5;
+const DEFAULT_VISIBLE = 3;
 
 export interface WeeklyLeaderboardProps {
   employees: Profile[];
@@ -29,7 +29,7 @@ interface LeaderboardRowProps {
 }
 
 /**
- * One ranked employee. Kept in a single component so the compact top-five
+ * One ranked employee. Kept in a single component so the compact top-three
  * list and the full leaderboard modal always render identical data,
  * alignment and progress bars.
  */
@@ -275,7 +275,7 @@ export default function WeeklyLeaderboard({
           </div>
         </div>
 
-        {/* Right: Employee Leaderboard — top five by default. */}
+        {/* Right: Employee Leaderboard — top three by default. */}
         <div className="flex flex-col lg:col-span-8 lg:pl-2">
           <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">

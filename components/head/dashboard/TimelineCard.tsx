@@ -73,6 +73,10 @@ function initials(name: string | null): string {
  * 24-hour attendance timeline matching Image 2:
  * 8 ruler ticks (00, 03, 06, 09, 12, 15, 18, 21), vertical grid lines,
  * pill statuses, green bars for punches, and blue vertical indicator with time pill.
+ *
+ * The employee rows live in a bounded scroll area so a large team never makes
+ * the dashboard page itself long. The hour ruler is sticky inside that area,
+ * which keeps the time labels readable while the rows scroll beneath it.
  */
 export default function TimelineCard({
   employees,
@@ -143,30 +147,57 @@ export default function TimelineCard({
           No employees found in the directory.
         </div>
       ) : (
-        <div className="relative mt-8 overflow-x-auto pb-2">
+        <div
+          role="region"
+          aria-label="Employee attendance timeline"
+          tabIndex={0}
+          className="mt-6 max-h-[26rem] overflow-auto overscroll-contain rounded-2xl border border-slate-100 [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 sm:max-h-[30rem]"
+        >
           <div className="min-w-[650px]">
-            {/* Hour Ruler Header */}
-            <div className="flex items-center pb-3">
+            {/* Sticky hour ruler: stays visible while the rows scroll. */}
+            <div className="sticky top-0 z-30 flex items-center border-b border-slate-100 bg-white/95 py-2 backdrop-blur-sm">
               {/* Left spacer for employee column */}
-              <div className="w-48 sm:w-56 shrink-0" aria-hidden="true" />
+              <div
+                className="w-48 shrink-0 pl-2 sm:w-56 sm:pl-3"
+                aria-hidden="true"
+              >
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Staff
+                </span>
+              </div>
 
               {/* 24-hour tick labels (8 columns of 3 hours) */}
-              <div className="relative flex-1 flex justify-between pr-4">
-                {TICKS.map((hour) => (
-                  <span
-                    key={hour}
-                    className="text-xs font-semibold tabular-nums text-slate-400 -translate-x-1/2"
-                  >
-                    {String(hour).padStart(2, "0")}
-                  </span>
-                ))}
+              <div className="relative flex-1 pr-4">
+                {/* Reserved lane for the "now" time pill so the ruler never
+                    shifts when the client-only marker appears. */}
+                <div className="relative h-4">
+                  {nowPct !== null && nowLabel !== null && (
+                    <span
+                      className="absolute -translate-x-1/2 whitespace-nowrap rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm"
+                      style={{ left: `${nowPct}%` }}
+                    >
+                      {nowLabel}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex justify-between">
+                  {TICKS.map((hour) => (
+                    <span
+                      key={hour}
+                      className="text-xs font-semibold tabular-nums text-slate-400 -translate-x-1/2"
+                    >
+                      {String(hour).padStart(2, "0")}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
 
             {/* Timeline Rows Container */}
-            <div className="relative border-t border-slate-100">
+            <div className="relative">
               {/* Background vertical grid lines for the 8 ticks */}
-              <div className="pointer-events-none absolute inset-0 left-48 sm:left-56 flex justify-between pr-4">
+              <div className="pointer-events-none absolute inset-0 left-48 flex justify-between pr-4 sm:left-56">
                 {TICKS.map((hour) => (
                   <div
                     key={hour}
@@ -176,24 +207,18 @@ export default function TimelineCard({
                 ))}
               </div>
 
-              {/* "Now" vertical indicator line and time pill — client-only so
-                  the server and browser never disagree on the time. */}
-              {nowPct !== null && nowLabel !== null && (
+              {/* "Now" vertical indicator line — client-only so the server and
+                  browser never disagree on the time. Its time pill lives in
+                  the sticky ruler above. */}
+              {nowPct !== null && (
                 <div
-                  className="pointer-events-none absolute inset-y-0 left-48 sm:left-56 right-4 z-20"
+                  className="pointer-events-none absolute inset-y-0 left-48 right-4 z-20 sm:left-56"
                   aria-hidden="true"
                 >
                   <div
-                    className="absolute top-0 bottom-0 transition-all duration-1000 ease-linear"
+                    className="absolute top-0 bottom-0 w-[2px] bg-blue-600 shadow-sm transition-all duration-1000 ease-linear"
                     style={{ left: `${nowPct}%` }}
-                  >
-                    {/* Top time badge */}
-                    <span className="absolute -top-7 -translate-x-1/2 rounded-full bg-blue-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm whitespace-nowrap">
-                      {nowLabel}
-                    </span>
-                    {/* Vertical bar */}
-                    <div className="h-full w-[2px] bg-blue-600 shadow-sm" />
-                  </div>
+                  />
                 </div>
               )}
 
@@ -206,12 +231,12 @@ export default function TimelineCard({
                 return (
                   <div
                     key={employee.id}
-                    className={`relative flex items-center py-3.5 border-b border-slate-100/80 ${
+                    className={`relative flex items-center border-b border-slate-100/80 py-2.5 ${
                       idx === 0 ? "border-t-0" : ""
                     }`}
                   >
                     {/* Left employee profile info */}
-                    <div className="flex w-48 sm:w-56 shrink-0 items-center gap-3 pr-4">
+                    <div className="flex w-48 shrink-0 items-center gap-3 pl-2 pr-4 sm:w-56 sm:pl-3">
                       {employee.profile_picture_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img

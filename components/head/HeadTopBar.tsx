@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import NotificationBell from "@/components/shared/NotificationBell";
 import SettingsModal from "@/components/shared/SettingsModal";
+import type { Theme } from "@/components/theme/ThemeProvider";
 import LiveClockChip from "@/components/head/dashboard/LiveClockChip";
 
 export interface HeadTopBarProps {
@@ -11,7 +12,7 @@ export interface HeadTopBarProps {
   headName: string;
   headEmail: string | null;
   headAvatarUrl: string | null;
-  initialTheme: "light" | "dark";
+  initialTheme: Theme;
   /** Heads are administrators and have no QR code of their own. */
   headPosition?: string | null;
 }
@@ -54,7 +55,7 @@ export default function HeadTopBar({
           onClick={() => setSettingsOpen(true)}
           title="Settings"
           aria-label="Settings"
-          className="focus-ring flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-slate-500 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:border-accent/30 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300"
+          className="focus-ring flex h-10 w-10 items-center justify-center rounded-full border border-border bg-[var(--card-bg)] text-ink-muted shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:border-accent/30 hover:text-[var(--primary-text)]"
         >
           <SettingsGearIcon />
         </button>

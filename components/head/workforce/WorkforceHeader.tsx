@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, SlidersHorizontal, ScanLine } from "lucide-react";
 import NotificationBell from "@/components/shared/NotificationBell";
 import SettingsModal from "@/components/shared/SettingsModal";
+import type { Theme } from "@/components/theme/ThemeProvider";
 import AddEmployeeModal from "./AddEmployeeModal";
 import ScanQrModal from "./ScanQrModal";
 import styles from "@/app/head/workforce/workforce.module.css";
@@ -13,7 +14,7 @@ export interface WorkforceHeaderProps {
   adminName: string;
   adminEmail: string | null;
   adminAvatarUrl: string | null;
-  initialTheme: "light" | "dark";
+  initialTheme: Theme;
   adminPosition?: string | null;
 }
 

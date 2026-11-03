@@ -221,9 +221,12 @@ export default function ReportsClient({ admin }: ReportsClientProps) {
         isCurrentMonth ? (
           <section
             className="animate-fade-up flex flex-col gap-3 rounded-[22px] border border-dashed p-5 sm:flex-row sm:items-start sm:gap-4"
-            style={{ backgroundColor: "#FFF5E0", borderColor: "#EBC672" }}
+            style={{
+              backgroundColor: "var(--warning-soft)",
+              borderColor: "var(--warning-border)",
+            }}
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[#8A5200]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--card-bg)] text-[#8A5200]">
               <Clock className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
@@ -250,9 +253,12 @@ export default function ReportsClient({ admin }: ReportsClientProps) {
         ) : (
           <section
             className="animate-fade-up flex flex-col gap-3 rounded-[22px] border p-5 sm:flex-row sm:items-start sm:gap-4"
-            style={{ backgroundColor: "#E7F6EE", borderColor: "#B8E3CB" }}
+            style={{
+              backgroundColor: "var(--success-soft)",
+              borderColor: "var(--success-border)",
+            }}
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[#0F6A3C]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--card-bg)] text-[#0F6A3C]">
               <Lock className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">

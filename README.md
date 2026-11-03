@@ -78,6 +78,16 @@ must not keep serving traffic while it is applied.
 
 The database signup guard in step 2 is not a substitute for the Auth setting.
 
+### Advanced appearance (per-user themes)
+
+Run `supabase/appearance_preferences.sql` after the security migrations. It
+adds `profiles.appearance_preferences` (JSONB) and widens
+`profiles.theme_preference` to allow `system`, without touching any other row
+or shared system setting. Until it is applied, Light/Dark still work but System
+Mode and Advanced Appearance saves are rejected by the old check constraint.
+Reads always fall back to a safe default palette if the JSON is missing or
+malformed.
+
 If the maintenance window has to be delayed, apply
 `supabase/security_hardening_emergency_2026-10-29.sql` first. It closes the
 live signup and self-role-escalation paths and enforces Head invariants

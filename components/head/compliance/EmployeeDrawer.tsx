@@ -329,7 +329,7 @@ export default function EmployeeDrawer({
                   className={styles.drawerDay}
                   key={index}
                   style={
-                    day.isToday ? { background: "#EEF4FF" } : undefined
+                    day.isToday ? { background: "var(--primary-soft)" } : undefined
                   }
                 >
                   <span className={styles.drawerDayLabel}>
@@ -345,7 +345,7 @@ export default function EmployeeDrawer({
                   <div
                     className={styles.drawerDayTrack}
                     style={{
-                      background: "#E6EEFB",
+                      background: "var(--primary-soft)",
                     }}
                   >
                     {!day.isFuture && (
@@ -355,7 +355,7 @@ export default function EmployeeDrawer({
                           {
                             width: `${width}%`,
                             background:
-                              "linear-gradient(90deg,#2563EB,#4C8BFF)",
+                              "linear-gradient(90deg,var(--primary),var(--primary-light))",
                             "--bar-delay": `${0.06 + index * 0.04}s`,
                           } as CSSProperties
                         }

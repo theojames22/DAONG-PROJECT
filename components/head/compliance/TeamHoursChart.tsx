@@ -84,14 +84,18 @@ export default function TeamHoursChart({ data }: TeamHoursChartProps) {
             ? 0
             : Math.max(0, Math.min(100, (hours / scale) * 100));
           const fill = day.isToday
-            ? "linear-gradient(180deg,#4C8BFF,#1D4FD8)"
-            : "linear-gradient(180deg,#7FA8FF,#2563EB)";
+            ? "linear-gradient(180deg,var(--primary-light),var(--primary-hover))"
+            : "linear-gradient(180deg,var(--primary-light),var(--primary))";
 
           return (
             <div className={styles.chartCol} key={index}>
               <span
                 className={styles.chartValue}
-                style={{ color: day.isToday ? "#1D4FD8" : "#33405A" }}
+                style={{
+                  color: day.isToday
+                    ? "var(--primary-text)"
+                    : "var(--secondary-text)",
+                }}
               >
                 {day.isFuture ? "\u00A0" : hours > 0 ? formatHours(hours) : "0h"}
               </span>
@@ -99,7 +103,7 @@ export default function TeamHoursChart({ data }: TeamHoursChartProps) {
               <div className={styles.chartTrackWrap}>
                 <div
                   className={styles.chartTrack}
-                  style={{ background: "#EDF2FB", border: "0" }}
+                  style={{ background: "var(--surface-2)", border: "0" }}
                 >
                   {!day.isFuture && (
                     <div

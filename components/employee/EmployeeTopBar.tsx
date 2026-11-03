@@ -4,13 +4,14 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import NotificationBell from "@/components/shared/NotificationBell";
 import SettingsModal from "@/components/shared/SettingsModal";
+import type { Theme } from "@/components/theme/ThemeProvider";
 
 export interface EmployeeTopBarProps {
   employeeId: string;
   employeeName: string;
   employeeEmail: string | null;
   employeeAvatarUrl: string | null;
-  initialTheme: "light" | "dark";
+  initialTheme: Theme;
   employeePosition?: string | null;
 }
 
@@ -47,7 +48,7 @@ export default function EmployeeTopBar({
           onClick={() => setSettingsOpen(true)}
           title="Settings"
           aria-label="Settings"
-          className="neu-icon-btn neu-focus flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-500 transition-colors hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300"
+          className="neu-icon-btn neu-focus flex h-10 w-10 items-center justify-center rounded-full bg-[var(--card-bg)] text-ink-muted transition-colors hover:text-[var(--primary-text)]"
         >
           <SettingsGearIcon />
         </button>

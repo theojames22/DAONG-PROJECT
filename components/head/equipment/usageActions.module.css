@@ -21,23 +21,23 @@
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  border: 1px solid #e6ebf5;
-  background: #ffffff;
-  color: #55617f;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--ink-muted);
   transition: background-color 160ms ease, border-color 160ms ease,
     color 160ms ease, box-shadow 160ms ease;
 }
 
 .toggle:hover {
-  border-color: #c3d2ea;
-  color: #2563eb;
+  border-color: var(--border-strong);
+  color: var(--primary-text);
   box-shadow: 0 2px 10px rgba(37, 99, 235, 0.14);
 }
 
 .toggle[data-open="true"] {
-  border-color: #2563eb;
-  background: #eff4ff;
-  color: #2563eb;
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-text);
 }
 
 /* The three lines live in a fixed-size box so the X is perfectly centred. */
@@ -100,7 +100,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  color: #ffffff;
+  color: var(--on-primary);
   opacity: 0;
   pointer-events: auto;
   /* Collapsed onto the toggle, then expands outward via --tx/--ty. */
@@ -129,24 +129,26 @@
 }
 
 .edit {
-  background: #2563eb;
+  background: var(--primary);
 }
 .edit.itemOpen:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .cancel {
-  background: #d97706;
+  background: var(--warning-solid);
+  color: var(--on-warning);
 }
 .cancel.itemOpen:hover {
-  background: #b45309;
+  background: var(--warning-hover);
 }
 
 .delete {
-  background: #dc2626;
+  background: var(--danger-solid);
+  color: var(--on-danger);
 }
 .delete.itemOpen:hover {
-  background: #b91c1c;
+  background: var(--danger-hover);
 }
 
 /*

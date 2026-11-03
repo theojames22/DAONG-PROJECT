@@ -61,6 +61,7 @@ export default function Sidebar({
       {/* Sidebar Panel */}
       <div
         ref={menuRef}
+        data-sidebar-panel
         className={`fixed left-4 top-16 bottom-4 z-50 flex w-64 flex-col gap-1 rounded-container p-3 transition-all duration-300 ease-in-out elev-3 overflow-hidden bg-surface ${
           isOpen
             ? "translate-x-0 opacity-100 pointer-events-auto"

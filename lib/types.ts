@@ -5,7 +5,7 @@ export type DayStatus = "present" | "unverified" | "incomplete" | "absent";
 
 // Head dashboard additions
 export type ProjectStatus = "pending" | "checking" | "approved" | "rejected";
-export type ThemePreference = "light" | "dark";
+export type ThemePreference = "light" | "dark" | "system";
 
 export interface Profile {
   id: string;

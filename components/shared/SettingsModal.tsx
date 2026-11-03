@@ -2,9 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Loader2, Lock, Moon, ShieldCheck, Sun, User, X } from "lucide-react";
+import {
+  Camera,
+  Check,
+  Loader2,
+  Lock,
+  Monitor,
+  Moon,
+  ShieldCheck,
+  Sun,
+  User,
+  X,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useTheme, type Theme } from "@/components/theme/ThemeProvider";
+import AdvancedAppearanceSettings from "@/components/appearance/AdvancedAppearanceSettings";
 import IdCardTab from "./IdCardTab";
 import ModalShell from "./ModalShell";
 
@@ -34,6 +46,12 @@ const ALLOWED_AVATAR_TYPES = new Set([
 ]);
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
+const APPEARANCE_MODES = [
+  { value: "light" as const, label: "Light", hint: "Bright surfaces", Icon: Sun },
+  { value: "dark" as const, label: "Dark", hint: "Low-light surfaces", Icon: Moon },
+  { value: "system" as const, label: "System", hint: "Follow this device", Icon: Monitor },
+];
+
 export default function SettingsModal({
   open,
   onClose,
@@ -41,14 +59,15 @@ export default function SettingsModal({
   userName,
   userEmail,
   userAvatarUrl,
-  initialTheme,
   position,
 }: SettingsModalProps) {
   const router = useRouter();
   const supabase = createClient();
-  const { theme, setTheme } = useTheme();
+  const { mode, setMode, saving: themeSaving } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<"personal" | "id">("personal");
+  const [appearanceExpanded, setAppearanceExpanded] = useState(false);
+  const [modeFeedback, setModeFeedback] = useState<Feedback>(null);
 
   // Heads don't clock in/out, so they have no QR code to show.
   const showQrTab = position !== "head";
@@ -262,15 +281,20 @@ export default function SettingsModal({
     }
   }
 
-  // ---- Theme (persist to profile) ------------------------------------------
+  // ---- Appearance mode (persisted through the authenticated API) -----------
 
-  async function toggleTheme() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    await supabase
-      .from("profiles")
-      .update({ theme_preference: next })
-      .eq("id", userId);
+  async function chooseMode(next: Theme) {
+    if (next === mode) return;
+    setModeFeedback(null);
+    const result = await setMode(next);
+    if (result.ok) {
+      setModeFeedback({ type: "success", text: "Appearance mode saved." });
+    } else {
+      setModeFeedback({
+        type: "error",
+        text: result.error ?? "Could not save the appearance mode.",
+      });
+    }
   }
 
   // ---- Render --------------------------------------------------------------
@@ -279,7 +303,7 @@ export default function SettingsModal({
     <ModalShell
       open={open}
       onClose={onClose}
-      maxWidthClass="max-w-[560px]"
+      maxWidthClass={appearanceExpanded ? "max-w-[1120px]" : "max-w-[560px]"}
       ariaLabelledBy="settings-modal-title"
     >
       {/* Header */}
@@ -571,36 +595,110 @@ export default function SettingsModal({
           </section>
 
           {/* ============ APPEARANCE ============ */}
-          <section className="px-5 py-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-[13.5px] font-bold text-ink">Appearance</h3>
-                <p className="mt-0.5 text-[11.5px] text-ink-muted">
-                  Switches instantly and is saved to your profile.
-                </p>
+          <section className="py-5">
+            <div className="px-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[13.5px] font-bold text-ink">Appearance</h3>
+                  <p className="mt-0.5 text-[11.5px] text-ink-muted">
+                    Saved to your account only. Each mode keeps its own customized palette.
+                  </p>
+                </div>
+                {themeSaving && (
+                  <span className="flex items-center gap-1 text-[10.5px] font-semibold text-ink-muted">
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                    Saving…
+                  </span>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={toggleTheme}
-                role="switch"
-                aria-checked={theme === "dark"}
-                aria-label="Toggle dark mode"
-                className={`neu-icon-btn neu-focus relative flex h-8 w-14 items-center rounded-full transition-colors ${
-                  theme === "dark" ? "bg-blue-600" : "bg-slate-200"
-                }`}
+
+              <div
+                className="mt-3 grid grid-cols-3 gap-1 rounded-xl border border-border bg-[var(--surface-2)] p-1"
+                role="radiogroup"
+                aria-label="Appearance mode"
               >
-                <span
-                  className={`absolute flex h-6 w-6 items-center justify-center rounded-full bg-white shadow transition-all duration-200 ${
-                    theme === "dark" ? "left-7" : "left-1"
+                {APPEARANCE_MODES.map(({ value, label, hint, Icon }, index) => {
+                  const selected = mode === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={`${label} mode — ${hint}`}
+                      tabIndex={selected ? 0 : -1}
+                      onClick={() => chooseMode(value)}
+                      onKeyDown={(event) => {
+                        const keys = [
+                          "ArrowRight",
+                          "ArrowDown",
+                          "ArrowLeft",
+                          "ArrowUp",
+                          "Home",
+                          "End",
+                        ];
+                        if (!keys.includes(event.key)) return;
+                        event.preventDefault();
+                        const radios = Array.from(
+                          event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                            '[role="radio"]'
+                          ) ?? []
+                        );
+                        if (radios.length === 0) return;
+                        let nextIndex = index;
+                        if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+                          nextIndex = (index + 1) % radios.length;
+                        } else if (
+                          event.key === "ArrowLeft" ||
+                          event.key === "ArrowUp"
+                        ) {
+                          nextIndex = (index - 1 + radios.length) % radios.length;
+                        } else if (event.key === "Home") {
+                          nextIndex = 0;
+                        } else {
+                          nextIndex = radios.length - 1;
+                        }
+                        radios[nextIndex]?.focus();
+                        chooseMode(APPEARANCE_MODES[nextIndex].value);
+                      }}
+                      disabled={themeSaving}
+                      className={`neu-focus flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-center transition-all disabled:cursor-wait disabled:opacity-70 ${
+                        selected
+                          ? "bg-[var(--card-bg)] text-ink shadow-sm ring-1 ring-[var(--primary-border)]"
+                          : "text-ink-muted hover:text-ink"
+                      }`}
+                    >
+                      <Icon
+                        className={`h-4 w-4 ${
+                          selected ? "text-[var(--primary-text)]" : ""
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span className="text-[10.5px] font-bold">{label}</span>
+                      <span className="text-[9px] leading-none text-ink-subtle">
+                        {hint}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {modeFeedback && (
+                <p
+                  role={modeFeedback.type === "error" ? "alert" : "status"}
+                  className={`mt-2 text-[10.5px] font-semibold ${
+                    modeFeedback.type === "success" ? "text-success" : "text-danger"
                   }`}
                 >
-                  {theme === "dark" ? (
-                    <Moon className="h-3 w-3 text-blue-600" />
-                  ) : (
-                    <Sun className="h-3 w-3 text-amber-500" />
-                  )}
-                </span>
-              </button>
+                  {modeFeedback.text}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <AdvancedAppearanceSettings
+                onExpandedChange={setAppearanceExpanded}
+              />
             </div>
           </section>
             </>

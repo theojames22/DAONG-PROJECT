@@ -19,6 +19,8 @@ export type AuthenticatedProfile = {
   profile_picture_url?: string | null;
   email?: string | null;
   theme_preference?: ThemePreference;
+  /** Raw JSONB column. Always pass through sanitizeAppearancePreferences(). */
+  appearance_preferences?: unknown;
 };
 
 /**

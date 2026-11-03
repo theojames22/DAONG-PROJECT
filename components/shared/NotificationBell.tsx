@@ -219,14 +219,14 @@ export default function NotificationBell({ userId, userName, role, variant = "ne
   // original neumorphic look.
   const flat = variant === "flat";
   const triggerClass = flat
-    ? "focus-ring relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-slate-500 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:border-accent/30 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300"
-    : "neu-icon-btn neu-focus relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-500 transition-colors hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300";
+    ? "focus-ring relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-[var(--card-bg)] text-ink-muted shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:border-accent/30 hover:text-[var(--primary-text)]"
+    : "neu-icon-btn neu-focus relative flex h-10 w-10 items-center justify-center rounded-full bg-[var(--card-bg)] text-ink-muted transition-colors hover:text-[var(--primary-text)]";
   // `min(360px, 100vw - 2rem)` keeps the panel inside the viewport on narrow
   // screens instead of pushing its left edge off-screen. Tailwind converts the
   // underscores to the spaces CSS `calc()` requires.
   const panelClass = flat
-    ? "card absolute right-0 top-12 z-[100] flex max-h-[520px] w-[min(360px,calc(100vw_-_2rem))] flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl border border-slate-200/90 animate-dropdown-in"
-    : "neu-raised absolute right-0 top-12 z-[100] flex max-h-[520px] w-[min(360px,calc(100vw_-_2rem))] flex-col overflow-hidden rounded-container bg-white dark:bg-slate-800 shadow-2xl animate-dropdown-in";
+    ? "card absolute right-0 top-12 z-[100] flex max-h-[520px] w-[min(360px,calc(100vw_-_2rem))] flex-col overflow-hidden rounded-2xl bg-[var(--elevated-surface)] shadow-2xl border border-slate-200/90 animate-dropdown-in"
+    : "neu-raised absolute right-0 top-12 z-[100] flex max-h-[520px] w-[min(360px,calc(100vw_-_2rem))] flex-col overflow-hidden rounded-container bg-[var(--elevated-surface)] shadow-2xl animate-dropdown-in";
   const inputClass = flat
     ? "focus-ring w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12.5px] text-ink outline-none"
     : "elev-pressed neu-focus rounded-lg px-2.5 py-1.5 text-[12.5px] text-ink outline-none";
@@ -242,14 +242,14 @@ export default function NotificationBell({ userId, userName, role, variant = "ne
       >
         <Bell className="h-[18px] w-[18px]" />
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-900">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-[var(--on-danger)] ring-2 ring-[var(--elevated-surface)]">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className={panelClass}>
+        <div className={panelClass} data-surface="elevated">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>

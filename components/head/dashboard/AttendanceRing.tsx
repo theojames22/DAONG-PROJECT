@@ -55,7 +55,7 @@ export default function AttendanceRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#f1f5f9"
+          stroke="var(--surface-2)"
           strokeWidth={stroke}
         />
 
@@ -67,7 +67,7 @@ export default function AttendanceRing({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#fecdd3"
+            stroke="var(--danger-border)"
             strokeWidth={stroke}
             strokeDasharray={circumference}
             strokeDashoffset={mounted ? 0 : circumference}
@@ -82,7 +82,7 @@ export default function AttendanceRing({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#10b981"
+            stroke="var(--success-solid)"
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -98,7 +98,7 @@ export default function AttendanceRing({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#fda4af"
+            stroke="var(--danger)"
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={`${absentLen} ${circumference}`}

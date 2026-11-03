@@ -27,6 +27,25 @@ import {
   resetRequestMessage,
   validateNewPassword,
 } from "../lib/auth/reset";
+import {
+  DEFAULT_APPEARANCE,
+  DEFAULT_DARK_COLORS,
+  DEFAULT_LIGHT_COLORS,
+  applyPreset,
+  appearanceToCssVars,
+  cloneAppearance,
+  contrastRatio,
+  getContrastReport,
+  inferPreset,
+  normalizeHex,
+  palettesEqual,
+  parseAppearancePreferences,
+  pickLabelOn,
+  pickReadableForeground,
+  resolveAppearance,
+  sanitizeAppearancePreferences,
+  validateAppearancePreferences,
+} from "../lib/appearance";
 
 test("dateKeyIn uses the app timezone, not the host timezone", () => {
   // 16:30 UTC is already the next calendar day in Manila.
@@ -246,5 +265,182 @@ test("auth errors are classified without leaking provider messages", () => {
   assert.equal(
     passwordUpdateMessage({ message: "raw backend error" }),
     "We couldn't update your password. Please try again."
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Appearance / theme engine
+// ---------------------------------------------------------------------------
+
+test("HEX values are normalised and validated", () => {
+  assert.equal(normalizeHex("#2563eb"), "#2563EB");
+  assert.equal(normalizeHex("2563EB"), "#2563EB");
+  assert.equal(normalizeHex("#abc"), "#AABBCC");
+  assert.equal(normalizeHex(" #0f0 "), "#00FF00");
+  assert.equal(normalizeHex("#abcd"), null);
+  assert.equal(normalizeHex("#12345"), null);
+  assert.equal(normalizeHex("rebeccapurple"), null);
+  assert.equal(normalizeHex(null), null);
+  assert.equal(normalizeHex(123), null);
+});
+
+test("WCAG contrast ratios match the published reference points", () => {
+  assert.equal(contrastRatio("#000000", "#FFFFFF"), 21);
+  assert.equal(contrastRatio("#FFFFFF", "#000000"), 21);
+  assert.equal(contrastRatio("#777777", "#777777"), 1);
+  // 4.5:1 is the AA floor for normal text.
+  assert.ok(contrastRatio("#2563EB", "#FFFFFF") >= 4.5);
+});
+
+test("pickReadableForeground keeps passing colors and fixes failing ones", () => {
+  assert.equal(pickReadableForeground("#172033", "#FFFFFF", 4.5), "#172033");
+
+  const fixed = pickReadableForeground("#E5E7EB", "#FFFFFF", 4.5);
+  assert.ok(contrastRatio(fixed, "#FFFFFF") >= 4.5);
+
+  const labelOnLight = pickLabelOn("#FFFFFF");
+  assert.ok(contrastRatio(labelOnLight, "#FFFFFF") >= 4.5);
+  const labelOnDark = pickLabelOn("#0F172A");
+  assert.ok(contrastRatio(labelOnDark, "#0F172A") >= 4.5);
+});
+
+test("malformed appearance JSON never breaks rendering", () => {
+  for (const raw of [null, undefined, "not json", "{", 42, [], { mode: "neon" }]) {
+    const prefs = sanitizeAppearancePreferences(raw);
+    assert.equal(prefs.version, 1);
+    assert.ok(["light", "dark", "system"].includes(prefs.mode));
+    assert.equal(prefs.light.colors.primary, DEFAULT_LIGHT_COLORS.primary);
+    assert.equal(prefs.dark.colors.primary, DEFAULT_DARK_COLORS.primary);
+  }
+});
+
+test("sanitising accepts a partial palette and falls back per key", () => {
+  const prefs = sanitizeAppearancePreferences({
+    mode: "dark",
+    light: { colors: { primary: "#123456", mainText: "nope" } },
+  });
+
+  assert.equal(prefs.mode, "dark");
+  assert.equal(prefs.light.colors.primary, "#123456");
+  assert.equal(prefs.light.colors.mainText, DEFAULT_LIGHT_COLORS.mainText);
+  assert.equal(prefs.light.preset, "custom");
+  assert.equal(prefs.dark.colors.primary, DEFAULT_DARK_COLORS.primary);
+});
+
+test("legacy theme_preference is used when JSON has no mode", () => {
+  assert.equal(
+    sanitizeAppearancePreferences(null, "system").mode,
+    "system"
+  );
+  assert.equal(
+    sanitizeAppearancePreferences({ mode: "dark" }, "light").mode,
+    "dark"
+  );
+});
+
+test("strict write parsing reports invalid colors instead of saving them", () => {
+  const { preferences, invalidColors } = parseAppearancePreferences({
+    light: { colors: { primary: "#123456", border: "blue" } },
+    dark: { colors: { danger: "#zzzzzz" } },
+  });
+
+  assert.deepEqual(invalidColors.sort(), ["dark.danger", "light.border"]);
+  assert.equal(preferences.light.colors.primary, "#123456");
+  assert.equal(preferences.light.colors.border, DEFAULT_LIGHT_COLORS.border);
+});
+
+test("presets are detected only while every colour matches", () => {
+  assert.equal(inferPreset(DEFAULT_LIGHT_COLORS, "light"), "daong-blue");
+  assert.equal(inferPreset(DEFAULT_DARK_COLORS, "dark"), "daong-blue");
+
+  const edited = { ...DEFAULT_LIGHT_COLORS, primary: "#FF0000" };
+  assert.equal(inferPreset(edited, "light"), "custom");
+  assert.equal(
+    sanitizeAppearancePreferences({
+      light: { preset: "daong-blue", colors: edited },
+    }).light.preset,
+    "custom"
+  );
+});
+
+test("applying a preset to one mode leaves the other palette untouched", () => {
+  const before = cloneAppearance(DEFAULT_APPEARANCE);
+  const after = applyPreset(before, "light", "emerald");
+
+  assert.equal(after.light.preset, "emerald");
+  assert.notEqual(after.light.colors.primary, before.light.colors.primary);
+  assert.deepEqual(after.dark, before.dark);
+  assert.equal(before.light.preset, "daong-blue");
+});
+
+test("auto-adjust derives readable text without overwriting swatches", () => {
+  const prefs = cloneAppearance(DEFAULT_APPEARANCE);
+  prefs.light.colors.mainText = "#FFFFFF"; // unreadable on the white page
+  prefs.options.autoAdjustText = true;
+
+  const resolved = resolveAppearance(prefs, "light");
+  assert.equal(
+    contrastRatio(resolved.tokens["--text-on-background"], "#FFFFFF") >= 4.5,
+    true
+  );
+  assert.equal(prefs.light.colors.mainText, "#FFFFFF");
+  assert.ok(resolved.adjustments.some((item) => item.key === "mainText"));
+});
+
+test("validation blocks unreadable text only when auto-adjust is off", () => {
+  const prefs = cloneAppearance(DEFAULT_APPEARANCE);
+  prefs.light.colors.mainText = "#FFFFFF";
+  prefs.light.colors.pageBackground = "#FFFFFF";
+
+  prefs.options.autoAdjustText = false;
+  const blocked = validateAppearancePreferences(prefs);
+  assert.equal(blocked.ok, false);
+  assert.ok(blocked.blocking.some((item) => item.mode === "light"));
+
+  prefs.options.autoAdjustText = true;
+  const allowed = validateAppearancePreferences(prefs);
+  assert.equal(allowed.ok, true);
+});
+
+test("contrast reports cover both independent palettes", () => {
+  const prefs = cloneAppearance(DEFAULT_APPEARANCE);
+  prefs.dark.colors.pageBackground = "#FFFFFF";
+  prefs.dark.colors.mainText = "#FFFFFF";
+  prefs.options.autoAdjustText = false;
+
+  const lightReport = getContrastReport(prefs, "light");
+  const darkReport = getContrastReport(prefs, "dark");
+
+  // The dark palette is deliberately unreadable here; the untouched light
+  // palette must not inherit that problem.
+  assert.ok(darkReport.blocking.length > lightReport.blocking.length);
+  assert.ok(
+    darkReport.blocking.some((item) => item.id === "main-on-page")
+  );
+  assert.ok(lightReport.blocking.every((item) => item.id !== "main-on-page"));
+});
+
+test("resolved tokens expose the selected palette and derived roles", () => {
+  const prefs = cloneAppearance(DEFAULT_APPEARANCE);
+  prefs.light.colors.primary = "#7C3AED";
+  prefs.light.colors.cardBackground = "#FDF4FF";
+
+  const vars = appearanceToCssVars(prefs, "light");
+  assert.equal(vars["--primary"], "#7C3AED");
+  assert.equal(vars["--card-bg"], "#FDF4FF");
+  assert.equal(vars["--page-bg"], prefs.light.colors.pageBackground);
+  assert.ok(vars["--on-primary"]);
+  assert.ok(vars["--text-on-card"]);
+  assert.ok(vars["--radius-card"]);
+  assert.ok(vars["--density-row-y"]);
+});
+
+test("palette equality is case-insensitive", () => {
+  assert.equal(
+    palettesEqual(DEFAULT_LIGHT_COLORS, {
+      ...DEFAULT_LIGHT_COLORS,
+      primary: DEFAULT_LIGHT_COLORS.primary.toLowerCase(),
+    }),
+    true
   );
 });

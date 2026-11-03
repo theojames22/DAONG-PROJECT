@@ -944,7 +944,7 @@ export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
               d={`M0,${y} C100,${y - 22} 200,${y + 22} 300,${y} C400,${
                 y - 22
               } 500,${y + 22} 600,${y} C700,${y - 22} 800,${y + 22} 900,${y} C1000,${y - 22} 1100,${y + 22} 1200,${y}`}
-              stroke="#2563EB"
+              stroke="var(--primary)"
               strokeOpacity="0.06"
               strokeWidth="1.5"
             />

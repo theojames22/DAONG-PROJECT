@@ -617,8 +617,8 @@ export default function EquipmentUsageLog({ admin }: EquipmentUsageLogProps) {
         <div className="relative px-2 sm:px-3">
           {/* Loading veil — dims the table, never a blank card */}
           {loading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[20px] bg-white/70 backdrop-blur-[1px]">
-              <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 shadow-sm">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[20px] bg-[var(--bg-overlay)] backdrop-blur-[1px]">
+              <div className="flex items-center gap-2 rounded-full bg-[var(--card-bg)] px-4 py-2.5 shadow-sm">
                 <Loader2 className="h-4 w-4 animate-spin text-[#2563EB]" />
                 <span className="text-[13px] font-medium text-[#55617F]">
                   Loading entries
@@ -825,7 +825,7 @@ export default function EquipmentUsageLog({ admin }: EquipmentUsageLogProps) {
               d={`M0,${y} C100,${y - 22} 200,${y + 22} 300,${y} C400,${
                 y - 22
               } 500,${y + 22} 600,${y} C700,${y - 22} 800,${y + 22} 900,${y} C1000,${y - 22} 1100,${y + 22} 1200,${y}`}
-              stroke="#2563EB"
+              stroke="var(--primary)"
               strokeOpacity="0.06"
               strokeWidth="1.5"
             />

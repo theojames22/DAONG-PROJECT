@@ -60,7 +60,7 @@ export default function EmployeeAvatarRing({
           cy="27"
           r={RADIUS}
           fill="none"
-          stroke="#E6EEFB"
+          stroke="var(--primary-soft)"
           strokeWidth="3.5"
         />
         <circle

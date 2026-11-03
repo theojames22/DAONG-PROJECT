@@ -87,11 +87,11 @@ type DayKind =
   | "upcoming";
 
 const DAY_STYLE: Record<DayKind, { bg: string; label: string; ring?: string }> = {
-  credited: { bg: "#CDEEDB", label: "Recorded · output submitted" },
-  recorded: { bg: "#DCE7FF", label: "Recorded · not credited" },
-  incomplete: { bg: "#FFE4AE", label: "Incomplete · no time-out" },
-  missing: { bg: "#F9D3D3", label: "Missing" },
-  weekend: { bg: "#EEF2F8", label: "Weekend" },
+  credited: { bg: "var(--success-soft)", label: "Recorded · output submitted" },
+  recorded: { bg: "var(--primary-soft)", label: "Recorded · not credited" },
+  incomplete: { bg: "var(--warning-soft)", label: "Incomplete · no time-out" },
+  missing: { bg: "var(--danger-soft)", label: "Missing" },
+  weekend: { bg: "var(--surface-2)", label: "Weekend" },
   upcoming: { bg: "transparent", label: "Upcoming", ring: "dashed" },
 };
 
@@ -208,10 +208,11 @@ export default function DetailsDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={`Attendance report for ${personName}`}
-        className="relative z-10 flex h-full w-full max-w-[520px] flex-col overflow-y-auto bg-white shadow-2xl animate-drawer-in sm:rounded-l-[22px]"
+        className="relative z-10 flex h-full w-full max-w-[520px] flex-col overflow-y-auto bg-[var(--elevated-surface)] shadow-2xl animate-drawer-in sm:rounded-l-[22px]"
+        data-surface="elevated"
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 border-b border-[#E6EBF5] bg-white/95 px-5 py-4 backdrop-blur sm:px-6">
+        <div className="sticky top-0 z-10 border-b border-[#E6EBF5] bg-[var(--elevated-surface)] px-5 py-4 backdrop-blur sm:px-6">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <span

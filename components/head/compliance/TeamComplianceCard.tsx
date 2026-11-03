@@ -112,7 +112,7 @@ export default function TeamComplianceCard({
               cy="80"
               r={RING_RADIUS}
               fill="none"
-              stroke="#FFFFFF"
+              stroke="var(--on-primary)"
               strokeWidth="12"
               strokeLinecap={ringCap > 0 ? "round" : "butt"}
               strokeDasharray={`${dash.toFixed(2)} ${RING_CIRCUMFERENCE.toFixed(

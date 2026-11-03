@@ -80,10 +80,11 @@ export default function ModalShell({
 
       {/* Modal Dialog Card */}
       <div
-        className={`relative z-10 flex w-full flex-col rounded-3xl border border-slate-200/90 bg-white shadow-2xl overflow-hidden animate-modal-in max-h-[calc(100vh-32px)] max-h-[calc(100dvh-32px)] sm:max-h-[calc(100dvh-48px)] dark:bg-slate-800 dark:border-slate-700/80 ${maxWidthClass} ${className}`}
+        className={`relative z-10 flex w-full flex-col overflow-hidden rounded-3xl border border-border bg-[var(--elevated-surface)] text-[var(--text-on-elevated-surface)] shadow-2xl animate-modal-in max-h-[calc(100vh-32px)] max-h-[calc(100dvh-32px)] sm:max-h-[calc(100dvh-48px)] ${maxWidthClass} ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={ariaLabelledBy}
+        data-surface="elevated"
       >
         {children}
       </div>

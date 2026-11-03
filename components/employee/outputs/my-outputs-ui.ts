@@ -72,7 +72,7 @@ export const STATUS_META: Record<OutputStatus, StatusMeta> = {
     badgeFg: "var(--mo-warning-ink)",
     dot: "var(--mo-warning)",
     bar: "var(--mo-warning)",
-    hero: "linear-gradient(135deg, #8a5200, #c27406)",
+    hero: "linear-gradient(135deg, var(--warning-solid), var(--warning-hover))",
     tone: "pending",
   },
   checking: {
@@ -83,7 +83,7 @@ export const STATUS_META: Record<OutputStatus, StatusMeta> = {
     badgeFg: "var(--mo-blue-ink)",
     dot: "var(--mo-blue)",
     bar: "var(--mo-blue)",
-    hero: "linear-gradient(135deg, #1d4fd8, #4c8bff)",
+    hero: "linear-gradient(135deg, var(--primary-hover), var(--primary-light))",
     tone: "checking",
   },
   done: {
@@ -94,7 +94,7 @@ export const STATUS_META: Record<OutputStatus, StatusMeta> = {
     badgeFg: "var(--mo-success-ink)",
     dot: "var(--mo-success)",
     bar: "var(--mo-success)",
-    hero: "linear-gradient(135deg, #0b5f36, #1f9d5b)",
+    hero: "linear-gradient(135deg, var(--success-solid), var(--success-hover))",
     tone: "approved",
   },
   rejected: {
@@ -105,7 +105,7 @@ export const STATUS_META: Record<OutputStatus, StatusMeta> = {
     badgeFg: "var(--mo-danger-ink)",
     dot: "var(--mo-danger)",
     bar: "var(--mo-danger)",
-    hero: "linear-gradient(135deg, #8e1b1b, #d64545)",
+    hero: "linear-gradient(135deg, var(--danger-solid), var(--danger-hover))",
     tone: "rejected",
   },
 };

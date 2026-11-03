@@ -123,7 +123,7 @@ export default function StaffTopMetricsCards({
         </div>
 
         {/* Informational Footer Line */}
-        <div className="relative pt-2 border-t border-black/5 dark:border-white/10">
+        <div className="relative pt-2 border-t border-border">
           <p
             className={`text-[11px] font-medium leading-tight ${
               isClockedIn ? "text-blue-50" : "text-staff-body"

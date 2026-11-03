@@ -239,7 +239,7 @@ export default function WeeklyCompliance({
               d="M0 90C220 20 380 160 620 100S1020 20 1240 90S1400 140 1440 110"
               transform={`translate(0 ${index * 28})`}
               fill="none"
-              stroke="#C9D9F5"
+              stroke="var(--primary-border)"
               strokeWidth="1.2"
               opacity={0.55 - index * 0.05}
             />

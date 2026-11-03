@@ -239,13 +239,13 @@ export default function ComplianceRoster({
               : 0;
             const captionColor =
               employee.status === "met"
-                ? "#0F6A3C"
+                ? "var(--success)"
                 : employee.status === "behind"
-                  ? "#8A5200"
+                  ? "var(--warning)"
                   : employee.status === "at_risk" ||
                       employee.status === "short"
-                    ? "#A82222"
-                    : "#5F6A80";
+                    ? "var(--danger)"
+                    : "var(--secondary-text)";
 
             return (
               <div
@@ -320,7 +320,7 @@ export default function ComplianceRoster({
                       >
                         <div
                           className={styles.miniTrack}
-                          style={{ background: "#E9EFFA", border: "0" }}
+                          style={{ background: "var(--primary-soft)", border: "0" }}
                         >
                           {!day.isFuture && (
                             <div
@@ -331,8 +331,8 @@ export default function ComplianceRoster({
                                 {
                                   height: `${height}%`,
                                   background: day.isToday
-                                    ? "linear-gradient(180deg,#4C8BFF,#1D4FD8)"
-                                    : "linear-gradient(180deg,#7FA8FF,#2563EB)",
+                                    ? "linear-gradient(180deg,var(--primary-light),var(--primary-hover))"
+                                    : "linear-gradient(180deg,var(--primary-light),var(--primary))",
                                   "--bar-delay": `${
                                     0.15 +
                                     Math.min(index, 8) * 0.035 +

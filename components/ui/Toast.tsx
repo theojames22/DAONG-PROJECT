@@ -60,7 +60,9 @@ function ToastItem({
     <div
       role="status"
       className={`animate-toast-up flex w-full items-center gap-2.5 rounded-full px-4 py-2.5 text-[13px] font-semibold shadow-lg ${
-        isSuccess ? "bg-[#0F1B3D] text-white" : "bg-[#991B1B] text-white"
+        isSuccess
+          ? "bg-success-solid text-on-success"
+          : "bg-danger-solid text-on-danger"
       }`}
     >
       <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} />

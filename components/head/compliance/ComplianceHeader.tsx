@@ -9,6 +9,7 @@ import {
 import NotificationBell from "@/components/shared/NotificationBell";
 import SettingsModal from "@/components/shared/SettingsModal";
 import type { WeeklyCompliancePayload } from "@/lib/compliance/types";
+import type { ThemeMode } from "@/lib/appearance";
 import styles from "@/app/head/compliance/compliance.module.css";
 
 export interface ComplianceHead {
@@ -17,7 +18,7 @@ export interface ComplianceHead {
   email: string | null;
   avatarUrl: string | null;
   position?: string | null;
-  theme: "light" | "dark";
+  theme: ThemeMode;
 }
 
 export interface ComplianceHeaderProps {

@@ -33,8 +33,10 @@
   /* ---------- Staff pages (My dashboard / My Schedule) ----------
      These two surfaces carry their own flat light palette. The tokens below
      let that palette re-theme under `.dark` instead of staying frozen light,
-     and keep body/muted text at WCAG AA in both themes. `--staff-blue*` and
-     `--staff-danger-solid` are theme-independent (defined here only). */
+     and keep body/muted text at WCAG AA in both themes. The ThemeProvider
+     derives `--staff-blue*` from the user's primary colour and
+     `--staff-danger-solid` from the danger status; the values here are the
+     no-JS fallback. */
   --staff-ink: #14213d;
   --staff-body: #475569;
   --staff-muted: #64748b;
@@ -58,6 +60,98 @@
   --staff-blue-dark: 29 78 216; /* #1d4ed8 */
   --staff-blue-ink: 37 99 235; /* #2563eb */
   --staff-danger-solid: #dc2626;
+
+  /* ---------- Advanced appearance tokens (defaults) ----------
+     The ThemeProvider writes the authenticated user's resolved values as
+     inline custom properties on <html>, which win over these defaults.
+     They exist so the app still renders correctly before hydration and for
+     unauthenticated screens. */
+  --page-bg: #f5f9ff;
+  --card-bg: #ffffff;
+  --elevated-surface: #ffffff;
+  --border-color: #d5e0f5;
+  --border-strong: #b8c5dc;
+  --focus-ring: #2563eb;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: #3b82f6;
+  --primary-soft: #eff6ff;
+  --primary-text: #2563eb;
+  --primary-border: #bfdbfe;
+  --on-primary: #ffffff;
+  --secondary: #475569;
+  --secondary-hover: #334155;
+  --secondary-soft: #f1f5f9;
+  --secondary-text: #475569;
+  --secondary-border: #cbd5e1;
+  --on-secondary: #ffffff;
+  --accent-solid: #0ea5e9;
+  --accent-hover: #0284c7;
+  --accent-soft-2: #e0f2fe;
+  --accent-text: #0369a1;
+  --accent-border: #bae6fd;
+  --on-accent: #04121f;
+  --text-on-background: #172033;
+  --text-on-card: #172033;
+  --text-on-elevated-surface: #172033;
+  --text-on-primary: #ffffff;
+  --text-on-secondary: #ffffff;
+  --text-on-accent: #04121f;
+  --text-muted-on-background: #64748b;
+  --text-muted-on-card: #64748b;
+  --text-muted-on-elevated-surface: #64748b;
+  --text-secondary-on-background: #475569;
+  --text-secondary-on-card: #475569;
+  --text-secondary-on-elevated-surface: #475569;
+  --text-link: #1d4ed8;
+  --info: #0369a1;
+  --info-text: #0369a1;
+  --info-solid: #0369a1;
+  --info-soft: #e0f2fe;
+  --info-border: #bae6fd;
+  --info-hover: #075985;
+  --on-info: #ffffff;
+  --success-solid: #15803d;
+  --success-text: #15803d;
+  --success-border: #bbf7d0;
+  --success-hover: #166534;
+  --on-success: #ffffff;
+  --warning-solid: #b45309;
+  --warning-text: #b45309;
+  --warning-border: #fed7aa;
+  --warning-hover: #92400e;
+  --on-warning: #ffffff;
+  --danger-solid: #b91c1c;
+  --danger-text: #b91c1c;
+  --danger-border: #fecaca;
+  --danger-hover: #991b1b;
+  --on-danger: #ffffff;
+  --sidebar-bg: var(--surface);
+  --sidebar-border: var(--border);
+  --card-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05), 0 16px 36px -20px rgba(15, 23, 42, 0.24);
+  --card-shadow-soft: 0 10px 28px -20px rgba(15, 23, 42, 0.28);
+  --card-shadow-elevated:
+    0 2px 5px rgba(15, 23, 42, 0.06), 0 26px 52px -24px rgba(15, 23, 42, 0.3);
+  --motion-duration: 200ms;
+
+  /* Radius scale — Tailwind's rounded-* utilities consume these. */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+  --radius-card: 20px;
+  --radius-container: 24px;
+
+  /* Density scale — shared by cards, controls, rows and the preview. */
+  --density-card-pad: 20px;
+  --density-stack-gap: 16px;
+  --density-control-y: 10px;
+  --density-control-x: 16px;
+  --density-row-y: 12px;
+  --density-font: 1;
 }
 
 .dark {
@@ -106,6 +200,73 @@
   --staff-danger-soft: rgba(239, 68, 68, 0.16);
   --staff-danger-border: rgba(248, 113, 113, 0.4);
   --staff-blue-ink: 96 165 250; /* #60a5fa — keep blue text legible on dark */
+
+  /* Advanced appearance defaults for the dark palette. */
+  --page-bg: #0f172a;
+  --card-bg: #1e293b;
+  --elevated-surface: #263449;
+  --border-color: #334155;
+  --border-strong: #475569;
+  --focus-ring: #60a5fa;
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-light: #93c5fd;
+  --primary-soft: rgba(59, 130, 246, 0.16);
+  --primary-text: #60a5fa;
+  --primary-border: rgba(96, 165, 250, 0.38);
+  --on-primary: #08111f;
+  --secondary: #94a3b8;
+  --secondary-hover: #cbd5e1;
+  --secondary-soft: #273549;
+  --secondary-text: #cbd5e1;
+  --secondary-border: #475569;
+  --on-secondary: #0b1220;
+  --accent-solid: #38bdf8;
+  --accent-hover: #7dd3fc;
+  --accent-soft-2: rgba(56, 189, 248, 0.18);
+  --accent-text: #7dd3fc;
+  --accent-border: rgba(56, 189, 248, 0.4);
+  --on-accent: #04121f;
+  --text-on-background: #f1f5f9;
+  --text-on-card: #f1f5f9;
+  --text-on-elevated-surface: #f1f5f9;
+  --text-on-primary: #08111f;
+  --text-on-secondary: #0b1220;
+  --text-on-accent: #04121f;
+  --text-muted-on-background: #94a3b8;
+  --text-muted-on-card: #94a3b8;
+  --text-muted-on-elevated-surface: #94a3b8;
+  --text-secondary-on-background: #cbd5e1;
+  --text-secondary-on-card: #cbd5e1;
+  --text-secondary-on-elevated-surface: #cbd5e1;
+  --text-link: #60a5fa;
+  --info: #38bdf8;
+  --info-text: #38bdf8;
+  --info-solid: #38bdf8;
+  --info-soft: rgba(56, 189, 248, 0.18);
+  --info-border: rgba(56, 189, 248, 0.38);
+  --info-hover: #7dd3fc;
+  --on-info: #04121f;
+  --success-solid: #4ade80;
+  --success-text: #4ade80;
+  --success-border: rgba(74, 222, 128, 0.4);
+  --success-hover: #86efac;
+  --on-success: #04120a;
+  --warning-solid: #fb923c;
+  --warning-text: #fb923c;
+  --warning-border: rgba(251, 146, 60, 0.4);
+  --warning-hover: #fdba74;
+  --on-warning: #1a0b02;
+  --danger-solid: #f87171;
+  --danger-text: #f87171;
+  --danger-border: rgba(248, 113, 113, 0.4);
+  --danger-hover: #fca5a5;
+  --on-danger: #1d0505;
+  --card-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35), 0 18px 42px -20px rgba(0, 0, 0, 0.72);
+  --card-shadow-soft: 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --card-shadow-elevated:
+    0 2px 6px rgba(0, 0, 0, 0.4), 0 26px 54px -22px rgba(0, 0, 0, 0.85);
 }
 
 html {
@@ -209,18 +370,18 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background-color: #2563eb;
-    color: #ffffff;
+    background-color: var(--primary);
+    color: var(--on-primary);
     font-weight: 600;
     font-size: 13.5px;
-    border-radius: 12px;
-    padding: 10px 18px;
-    box-shadow: 4px 4px 10px rgba(37, 99, 235, 0.22), -2px -2px 8px rgba(255, 255, 255, 0.6);
+    border-radius: var(--radius-md);
+    padding: var(--density-control-y) var(--density-control-x);
+    box-shadow: 4px 4px 10px var(--shadow-dark), -2px -2px 8px var(--shadow-light);
     transition: box-shadow 200ms ease, transform 150ms ease, background-color 150ms ease;
   }
   .btn-primary:hover {
-    background-color: #1d4ed8;
-    box-shadow: 5px 5px 12px rgba(37, 99, 235, 0.28), -2px -2px 8px rgba(255, 255, 255, 0.6);
+    background-color: var(--primary-hover);
+    box-shadow: 5px 5px 12px var(--shadow-dark), -2px -2px 8px var(--shadow-light);
   }
   .btn-primary:active {
     transform: translateY(1px) scale(0.99);
@@ -237,16 +398,19 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background-color: var(--base);
-    color: #1d4ed8;
+    background-color: var(--secondary-soft);
+    color: var(--secondary-text);
+    border: 1px solid var(--secondary-border);
     font-weight: 600;
     font-size: 13.5px;
-    border-radius: 12px;
-    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    padding: var(--density-control-y) var(--density-control-x);
     box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
-    transition: box-shadow 200ms ease, transform 150ms ease;
+    transition: box-shadow 200ms ease, transform 150ms ease,
+      background-color 150ms ease, border-color 150ms ease;
   }
   .btn-secondary:hover {
+    background-color: var(--secondary-border);
     box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
   }
   .btn-secondary:active {
@@ -263,16 +427,17 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background-color: #fee2e2;
-    color: #b91c1c;
+    background-color: var(--danger-soft);
+    color: var(--danger);
+    border: 1px solid var(--danger-border);
     font-weight: 600;
     font-size: 13.5px;
-    border-radius: 12px;
-    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    padding: var(--density-control-y) var(--density-control-x);
     transition: background-color 150ms ease, transform 150ms ease;
   }
   .btn-danger:hover {
-    background-color: #fecaca;
+    background-color: var(--danger-border);
   }
 
   .btn-danger:disabled {
@@ -301,10 +466,15 @@ body {
   /* ---------- Skeleton / loading ---------- */
 
   .skeleton {
-    background: linear-gradient(90deg, #eaf1fb 0px, #f8fbff 40px, #eaf1fb 80px);
+    background: linear-gradient(
+      90deg,
+      var(--surface-2) 0px,
+      var(--card-bg) 40px,
+      var(--surface-2) 80px
+    );
     background-size: 600px 100%;
     animation: shimmer 1.6s infinite linear;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
   }
 }
 
@@ -323,12 +493,11 @@ body {
 @layer components {
   /* Base card: white surface, hairline border, one soft shadow. */
   .card {
-    background-color: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow:
-      0 1px 2px rgba(15, 23, 42, 0.04),
-      0 8px 24px -12px rgba(15, 23, 42, 0.12);
+    background-color: var(--card-bg);
+    color: var(--text-on-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card);
+    box-shadow: var(--card-shadow);
   }
 
   /* Subtle lift for interactive cards. */
@@ -340,17 +509,16 @@ body {
   }
   .card-hover:hover {
     transform: translateY(-2px);
-    border-color: rgba(37, 99, 235, 0.18);
-    box-shadow:
-      0 1px 2px rgba(15, 23, 42, 0.05),
-      0 14px 32px -14px rgba(15, 23, 42, 0.2);
+    border-color: var(--primary-border);
+    box-shadow: var(--card-shadow-elevated);
   }
 
   /* The solid-blue accent card (Outputs to review). */
   .card-accent {
-    background-color: var(--accent);
+    background-color: var(--primary);
+    color: var(--on-primary);
     border: 1px solid transparent;
-    border-radius: 16px;
+    border-radius: var(--radius-card);
     box-shadow:
       0 1px 2px rgba(29, 78, 216, 0.2),
       0 12px 28px -12px rgba(37, 99, 235, 0.45);
@@ -404,20 +572,17 @@ body {
   /* Card per the usage-log spec: white, hairline border,
      20px radius and a single soft blue-tinted shadow. */
   .card-usage {
-    background-color: #ffffff;
-    border: 1px solid #e6ebf5;
-    border-radius: 20px;
-    box-shadow:
-      0 1px 2px rgba(15, 27, 61, 0.04),
-      0 10px 30px rgba(37, 99, 235, 0.06);
+    background-color: var(--card-bg);
+    color: var(--text-on-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card);
+    box-shadow: var(--card-shadow);
   }
 
   .dark .card-usage {
-    background-color: var(--surface);
-    border-color: var(--divider);
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.3),
-      0 10px 30px rgba(0, 0, 0, 0.35);
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    box-shadow: var(--card-shadow);
   }
 
   /* History table: light row dividers, subtle hover tint.
@@ -426,16 +591,16 @@ body {
     transition: background-color 150ms ease;
   }
   .usage-table tbody tr:hover {
-    background-color: #f7faff;
+    background-color: var(--surface-2);
   }
   .dark .usage-table tbody tr:hover {
     background-color: var(--surface-2);
   }
   .usage-table tbody tr td {
-    border-bottom: 1px solid #e6ebf5;
+    border-bottom: 1px solid var(--border-color);
   }
   .dark .usage-table tbody tr td {
-    border-bottom-color: var(--divider);
+    border-bottom-color: var(--border-color);
   }
   .usage-table tbody tr:last-child td {
     border-bottom: 0;
@@ -460,10 +625,10 @@ body {
 @keyframes timelineNowPulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.32);
+    box-shadow: 0 0 0 0 var(--primary-soft);
   }
   70% {
-    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
+    box-shadow: 0 0 0 6px transparent;
   }
 }
 .timeline-now-dot {
@@ -473,19 +638,13 @@ body {
 /* Dark mode: same shapes, deeper shadows so cards still separate from
    the dark page. */
 .dark .card {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.3),
-    0 8px 24px -12px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--card-shadow);
 }
 .dark .card-hover:hover {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.35),
-    0 14px 32px -14px rgba(0, 0, 0, 0.65);
+  box-shadow: var(--card-shadow-elevated);
 }
 .dark .card-accent {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.3),
-    0 12px 28px -12px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--card-shadow);
 }
 
 /* ---------- Motion ---------- */
@@ -1588,17 +1747,17 @@ html:not([data-app-ready="true"]) [data-dashboard] .animate-fade-up {
 
 /* Visible keyboard focus, kept crisp against the soft shadows. */
 .neu-focus:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 /* Same ring under a neutral name, for components that no longer carry
    any neumorphic styling. */
 .focus-ring:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 /* =====================================================================
@@ -1672,4 +1831,492 @@ html:not([data-app-ready="true"]) [data-dashboard] .animate-fade-up {
   .ring-white {
     --tw-ring-color: var(--surface);
   }
+}
+
+/* =====================================================================
+   ADVANCED APPEARANCE � semantic utilities, legacy bridge extensions and
+   the user-selected density / radius / card / sidebar / motion options.
+   ---------------------------------------------------------------------
+   The ThemeProvider writes every token as an inline custom property on
+   <html>. Nothing below hardcodes a brand colour, so a selected palette
+   flows through the whole application (including old stock utilities).
+   ===================================================================== */
+
+/* Brand utilities that share one Tailwind token but need different roles:
+   text uses the contrast-checked foreground, backgrounds use the solid. */
+.text-accent { color: var(--accent-text); }
+.text-accent-dark { color: var(--accent-text); }
+.text-accent-light { color: var(--accent-text); }
+.bg-accent { background-color: var(--accent-solid); color: var(--on-accent); }
+.bg-accent-soft { background-color: var(--accent-soft-2); }
+.border-accent { border-color: var(--accent-border); }
+.hover\:bg-accent-soft:hover { background-color: var(--accent-soft-2); }
+.hover\:border-accent\/30:hover { border-color: var(--accent-border); }
+
+/* Staff buttons historically hardcode a white label on the brand fill. Keep
+   those labels readable even when a custom primary/danger colour is light. */
+.bg-staff-blue.text-white:not(:disabled),
+.bg-staff-blue-dark.text-white:not(:disabled),
+.hover\:bg-staff-blue:hover.text-white:not(:disabled),
+.hover\:bg-staff-blue-dark:hover.text-white:not(:disabled),
+.hover\:bg-staff-blue:hover.hover\:text-white:hover:not(:disabled),
+.hover\:bg-staff-blue-dark:hover.hover\:text-white:hover:not(:disabled) {
+  color: var(--on-primary);
+}
+.bg-staff-danger-solid.text-white:not(:disabled),
+.hover\:bg-staff-danger-solid:hover.text-white:not(:disabled),
+.hover\:bg-staff-danger-solid:hover.hover\:text-white:hover:not(:disabled) {
+  color: var(--on-danger);
+}
+.text-primary { color: var(--primary-text); }
+.bg-primary { background-color: var(--primary); color: var(--on-primary); }
+.border-primary { border-color: var(--primary-border); }
+
+/* Text role contexts. A card can have a different background from the page,
+   so it receives its own paired foreground tokens. */
+.card,
+.card-usage,
+.card-accent,
+.elev-1,
+.elev-2,
+.elev-3,
+.neu-raised {
+  color: var(--text-on-card);
+}
+.card .text-ink,
+.card-usage .text-ink,
+.elev-1 .text-ink,
+.elev-2 .text-ink,
+.elev-3 .text-ink,
+.neu-raised .text-ink {
+  color: var(--text-on-card);
+}
+.card .text-ink-muted,
+.card-usage .text-ink-muted,
+.elev-1 .text-ink-muted,
+.elev-2 .text-ink-muted,
+.elev-3 .text-ink-muted,
+.neu-raised .text-ink-muted {
+  color: var(--text-muted-on-card);
+}
+.card .text-ink-subtle,
+.card-usage .text-ink-subtle,
+.elev-1 .text-ink-subtle,
+.elev-2 .text-ink-subtle,
+.elev-3 .text-ink-subtle,
+.neu-raised .text-ink-subtle {
+  color: var(--text-muted-on-card);
+}
+
+[data-surface="elevated"] {
+  background-color: var(--elevated-surface);
+  color: var(--text-on-elevated-surface);
+}
+[data-surface="elevated"] .text-ink {
+  color: var(--text-on-elevated-surface);
+}
+[data-surface="elevated"] .text-ink-muted,
+[data-surface="elevated"] .text-ink-subtle {
+  color: var(--text-muted-on-elevated-surface);
+}
+
+/* ---------- Legacy stock utilities ? user palette ---------- */
+
+/* Slate / white surfaces are already bridged above. These extend the bridge
+   to the blue and status families used by the Head pages. */
+.bg-blue-50, .bg-blue-50\/70, .bg-blue-50\/80, .bg-blue-100 {
+  background-color: var(--primary-soft);
+}
+.bg-blue-500, .bg-blue-600 {
+  background-color: var(--primary);
+  color: var(--on-primary);
+}
+.bg-blue-700, .bg-blue-800 {
+  background-color: var(--primary-hover);
+  color: var(--on-primary);
+}
+.text-blue-50, .text-blue-100 {
+  color: var(--on-primary);
+}
+.text-blue-500, .text-blue-600, .text-blue-700, .text-blue-800 {
+  color: var(--primary-text);
+}
+.border-blue-100, .border-blue-200, .border-blue-300, .border-blue-400,
+.border-blue-500, .border-blue-600 {
+  border-color: var(--primary-border);
+}
+.hover\:bg-blue-50:hover, .hover\:bg-blue-100:hover {
+  background-color: var(--primary-soft);
+}
+.hover\:bg-blue-700:hover, .hover\:bg-blue-800:hover {
+  background-color: var(--primary-hover);
+}
+.hover\:text-blue-500:hover, .hover\:text-blue-600:hover, .hover\:text-blue-700:hover {
+  color: var(--primary-text);
+}
+.hover\:border-blue-200:hover, .hover\:border-blue-300:hover,
+.hover\:border-blue-500:hover {
+  border-color: var(--primary-border);
+}
+.from-blue-600, .from-blue-700, .via-blue-600, .to-blue-500, .to-blue-700 {
+  --tw-gradient-from: var(--primary) var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.bg-emerald-50, .bg-emerald-100 {
+  background-color: var(--success-soft);
+}
+.bg-emerald-400, .bg-emerald-500, .bg-emerald-600, .bg-emerald-700 {
+  background-color: var(--success-solid);
+  color: var(--on-success);
+}
+.text-emerald-500, .text-emerald-600, .text-emerald-700, .text-emerald-800 {
+  color: var(--success);
+}
+.border-emerald-100, .border-emerald-200, .border-emerald-300 {
+  border-color: var(--success-border);
+}
+.bg-amber-50, .bg-amber-100 {
+  background-color: var(--warning-soft);
+}
+.bg-amber-400, .bg-amber-500, .bg-amber-600, .bg-amber-700 {
+  background-color: var(--warning-solid);
+  color: var(--on-warning);
+}
+.text-amber-500, .text-amber-600, .text-amber-700, .text-amber-800 {
+  color: var(--warning);
+}
+.border-amber-100, .border-amber-200, .border-amber-300 {
+  border-color: var(--warning-border);
+}
+.bg-rose-50, .bg-rose-100, .bg-red-50 {
+  background-color: var(--danger-soft);
+}
+.bg-rose-400, .bg-rose-500, .bg-rose-600, .bg-rose-700,
+.bg-red-500, .bg-red-600 {
+  background-color: var(--danger-solid);
+  color: var(--on-danger);
+}
+.text-rose-500, .text-rose-600, .text-rose-700, .text-red-500, .text-red-600 {
+  color: var(--danger);
+}
+.border-rose-100, .border-rose-200, .border-rose-300, .border-rose-400,
+.border-red-200 {
+  border-color: var(--danger-border);
+}
+.bg-sky-50, .bg-cyan-50 {
+  background-color: var(--info-soft);
+}
+.text-sky-500, .text-sky-600, .text-sky-700, .text-cyan-600, .text-cyan-700 {
+  color: var(--info);
+}
+.border-sky-100, .border-sky-200, .border-cyan-200 {
+  border-color: var(--info-border);
+}
+
+.bg-slate-700, .bg-slate-800, .bg-slate-900 {
+  background-color: var(--elevated-surface);
+  color: var(--text-on-elevated-surface);
+}
+.text-slate-100, .text-slate-200, .text-slate-300 {
+  color: var(--text-on-elevated-surface);
+}
+.border-slate-700, .border-slate-700\/70, .border-slate-700\/80 {
+  border-color: var(--border-color);
+}
+.divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-color);
+}
+
+/* Labels on solid fills must follow the computed on-* colour. */
+.bg-blue-500.text-white, .bg-blue-600.text-white, .bg-blue-700.text-white,
+.bg-emerald-400.text-white, .bg-emerald-500.text-white,
+.bg-emerald-600.text-white, .bg-emerald-700.text-white,
+.bg-amber-400.text-white, .bg-amber-500.text-white,
+.bg-amber-600.text-white, .bg-amber-700.text-white,
+.bg-rose-400.text-white, .bg-rose-500.text-white,
+.bg-rose-600.text-white, .bg-red-500.text-white, .bg-red-600.text-white {
+  color: var(--on-primary);
+}
+.bg-emerald-400.text-white, .bg-emerald-500.text-white,
+.bg-emerald-600.text-white, .bg-emerald-700.text-white {
+  color: var(--on-success);
+}
+.bg-amber-400.text-white, .bg-amber-500.text-white,
+.bg-amber-600.text-white, .bg-amber-700.text-white {
+  color: var(--on-warning);
+}
+.bg-rose-400.text-white, .bg-rose-500.text-white,
+.bg-rose-600.text-white, .bg-red-500.text-white, .bg-red-600.text-white {
+  color: var(--on-danger);
+}
+
+/* The audit found a lot of exact hex utilities in the Head pages. Exact-word
+   attribute selectors avoid touching variant classes such as
+   placeholder:text-[#...] or hover:text-[#...]. */
+[class~="text-[#0F1B3D]"],
+[class~="text-[#0F1B33]"],
+[class~="text-[#0F172A]"],
+[class~="text-[#17233B]"],
+[class~="text-[#111827]"] { color: var(--ink); }
+
+[class~="text-[#55617F]"],
+[class~="text-[#5F6A80]"],
+[class~="text-[#44506A]"],
+[class~="text-[#475569]"],
+[class~="text-[#64748B]"],
+[class~="text-[#6B7280]"] { color: var(--ink-muted); }
+
+[class~="text-[#94A3B8]"],
+[class~="text-[#9AA8BD]"],
+[class~="text-[#9AA5BD]"],
+[class~="text-[#8793AB]"],
+[class~="text-[#71809B]"],
+[class~="text-[#8193AE]"],
+[class~="text-[#B4BFD4]"] { color: var(--ink-subtle); }
+
+[class~="text-[#2563EB]"],
+[class~="text-[#1D4ED8]"],
+[class~="text-[#1D4FD8]"],
+[class~="text-[#2864F0]"],
+[class~="text-[#4C8BFF]"] { color: var(--primary-text); }
+
+[class~="text-[#0F6A3C]"],
+[class~="text-[#166534]"],
+[class~="text-[#1F9D5B]"] { color: var(--success); }
+[class~="text-[#991B1B]"],
+[class~="text-[#A82222]"],
+[class~="text-[#DC2626]"] { color: var(--danger); }
+[class~="text-[#8A5200]"],
+[class~="text-[#92400E]"],
+[class~="text-[#B45309]"],
+[class~="text-[#A45A00]"] { color: var(--warning); }
+
+[class~="bg-[#2563EB]"],
+[class~="bg-[#1D4ED8]"],
+[class~="bg-[#1F55D6]"],
+[class~="bg-[#2864F0]"] {
+  background-color: var(--primary);
+  color: var(--on-primary);
+}
+[class~="bg-[#E4EDFF]"],
+[class~="bg-[#EAF1FF]"],
+[class~="bg-[#D6E4FF]"],
+[class~="bg-[#EEF3FF]"],
+[class~="bg-[#F1F6FF]"],
+[class~="bg-[#E6EEFF]"],
+[class~="bg-[#E1EBFF]"] { background-color: var(--primary-soft); }
+[class~="bg-[#EEF2F8]"],
+[class~="bg-[#F1F5F9]"],
+[class~="bg-[#EDF1F7]"],
+[class~="bg-[#F8FAFC]"],
+[class~="bg-[#F8FAFD]"] { background-color: var(--surface-2); }
+[class~="bg-[#F4F7FC]"],
+[class~="bg-[#F4F8FE]"],
+[class~="bg-[#F7FAFF]"],
+[class~="bg-[#F8FAFF]"],
+[class~="bg-[#F3F7FE]"] { background-color: var(--surface-2); }
+[class~="bg-[#FEE2E2]"],
+[class~="bg-[#FDE5E5]"],
+[class~="bg-[#FEF2F2]"],
+[class~="bg-[#FFF4F4]"] { background-color: var(--danger-soft); }
+[class~="bg-[#FEF3C7]"],
+[class~="bg-[#FFF0D1]"] { background-color: var(--warning-soft); }
+[class~="bg-[#DCFCE7]"],
+[class~="bg-[#DDF5E7]"] { background-color: var(--success-soft); }
+
+[class~="border-[#E6EBF5]"],
+[class~="border-[#D5E0F5]"],
+[class~="border-[#CBD5E1]"],
+[class~="border-[#DFE6F0]"],
+[class~="border-[#E1E8F2]"],
+[class~="border-[#D9E5FF]"],
+[class~="border-[#EEF2F8]"],
+[class~="border-[#EAEFF7]"],
+[class~="border-[#E2E8F0]"],
+[class~="border-[#D8E0EA]"] { border-color: var(--border-color); }
+[class~="border-[#2563EB]"],
+[class~="border-[#B7CBF3]"],
+[class~="border-[#9FBBF2]"],
+[class~="border-[#B9CCEE]"],
+[class~="border-[#C3D2EA]"],
+[class~="border-[#BFDBFE]"] { border-color: var(--primary-border); }
+[class~="border-[#FCA5A5]"],
+[class~="border-[#FECACA]"],
+[class~="border-[#F3C2C2]"],
+[class~="border-[#F4CACA]"] { border-color: var(--danger-border); }
+[class~="border-[#FCD34D]"] { border-color: var(--warning-border); }
+[class~="border-[#86EFAC]"] { border-color: var(--success-border); }
+
+/* Second pass over arbitrary hex values that only appear on a few screens
+   (leaderboards, equipment actions, attendance status). Kept in one place so
+   those screens follow the same palette without another editing sweep. */
+[class~="bg-[#1E40AF]"] {
+  background-color: var(--primary-hover);
+  color: var(--on-primary);
+}
+[class~="bg-[#0F6A3C]"],
+[class~="bg-[#166534]"],
+[class~="bg-[#22C55E]"] {
+  background-color: var(--success-solid);
+  color: var(--on-success);
+}
+[class~="bg-[#8A5200]"],
+[class~="bg-[#B45309]"],
+[class~="bg-[#D97706]"],
+[class~="bg-[#F59E0B]"] {
+  background-color: var(--warning-solid);
+  color: var(--on-warning);
+}
+[class~="bg-[#B91C1C]"],
+[class~="bg-[#DC2626]"],
+[class~="bg-[#EF4444]"] {
+  background-color: var(--danger-solid);
+  color: var(--on-danger);
+}
+[class~="bg-[#CBD5E1]"],
+[class~="bg-[#E4EAF5]"] {
+  background-color: var(--surface-2);
+}
+[class~="bg-[#eff6ff]"],
+[class~="bg-[#f0f6ff]"],
+[class~="bg-[#f3f7ff]"],
+[class~="bg-[#f4f8fe]"] {
+  background-color: var(--primary-soft);
+}
+[class~="bg-[#F5E9DA]"] { background-color: var(--warning-soft); }
+[class~="bg-[#FDFAF6]"] { background-color: var(--warning-soft); }
+[class~="border-[#F0E7DB]"] { border-color: var(--warning-border); }
+[class~="divide-[#E6EBF5]"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--divider);
+}
+[class~="border-[#991B1B]"] { border-color: var(--danger-border); }
+[class~="text-[#9A6A38]"] { color: var(--warning); }
+[class~="ring-[#2563EB]"] { --tw-ring-color: var(--primary); }
+[class~="ring-[#D9E5FF]"],
+[class~="ring-[#DCE7FF]"],
+[class~="ring-[#E1EBFF]"] { --tw-ring-color: var(--primary-border); }
+
+/* Labels on hardcoded solid fills must follow the contrasting token too. */
+[class~="bg-[#2563EB]"].text-white,
+[class~="bg-[#1D4ED8]"].text-white,
+[class~="bg-[#1F55D6]"].text-white,
+[class~="bg-[#2864F0]"].text-white,
+[class~="bg-[#1E40AF]"].text-white,
+.from-blue-600.text-white,
+.from-blue-700.text-white,
+.to-blue-500.text-white,
+.to-blue-700.text-white { color: var(--on-primary); }
+[class~="bg-[#0F6A3C]"].text-white,
+[class~="bg-[#166534]"].text-white,
+[class~="bg-[#22C55E]"].text-white { color: var(--on-success); }
+[class~="bg-[#8A5200]"].text-white,
+[class~="bg-[#B45309]"].text-white,
+[class~="bg-[#D97706]"].text-white,
+[class~="bg-[#F59E0B]"].text-white { color: var(--on-warning); }
+[class~="bg-[#B91C1C]"].text-white,
+[class~="bg-[#DC2626]"].text-white,
+[class~="bg-[#EF4444]"].text-white { color: var(--on-danger); }
+
+/* ---------- Card appearance ----------
+   The :is() form lets the scoped Appearance preview opt into the same rules
+   as <html>, so card styling changes are visible before they are saved. */
+:is(html[data-card-style="border"], [data-card-style="border"]) .card,
+:is(html[data-card-style="border"], [data-card-style="border"]) .card-usage,
+:is(html[data-card-style="border"], [data-card-style="border"]) .card-lift {
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+:is(html[data-card-style="shadow"], [data-card-style="shadow"]) .card,
+:is(html[data-card-style="shadow"], [data-card-style="shadow"]) .card-usage,
+:is(html[data-card-style="shadow"], [data-card-style="shadow"]) .card-lift {
+  border-color: transparent;
+  box-shadow: var(--card-shadow-soft);
+}
+:is(html[data-card-style="elevated"], [data-card-style="elevated"]) .card,
+:is(html[data-card-style="elevated"], [data-card-style="elevated"]) .card-usage,
+:is(html[data-card-style="elevated"], [data-card-style="elevated"]) .card-lift {
+  border-color: transparent;
+  box-shadow: var(--card-shadow-elevated);
+}
+
+/* ---------- Sidebar appearance ---------- */
+[data-sidebar-panel] {
+  background-color: var(--sidebar-bg) !important;
+  border: 1px solid var(--sidebar-border);
+  color: var(--text-on-card);
+}
+:is(html[data-sidebar-style="elevated"], [data-sidebar-style="elevated"]) [data-sidebar-panel] {
+  box-shadow: var(--card-shadow-elevated);
+}
+:is(html[data-sidebar-style="subtle"], [data-sidebar-style="subtle"]) [data-sidebar-panel] {
+  box-shadow: var(--card-shadow-soft);
+}
+
+/* The live preview carries its own draft attributes while the saved theme is
+   still on <html>. These scoped rules make the draft win inside the preview. */
+.appearance-preview[data-card-style="border"] .card,
+.appearance-preview[data-card-style="border"] .card-usage,
+.appearance-preview[data-card-style="border"] .card-lift {
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+.appearance-preview[data-card-style="shadow"] .card,
+.appearance-preview[data-card-style="shadow"] .card-usage,
+.appearance-preview[data-card-style="shadow"] .card-lift {
+  border-color: transparent;
+  box-shadow: var(--card-shadow-soft);
+}
+.appearance-preview[data-card-style="elevated"] .card,
+.appearance-preview[data-card-style="elevated"] .card-usage,
+.appearance-preview[data-card-style="elevated"] .card-lift {
+  border-color: transparent;
+  box-shadow: var(--card-shadow-elevated);
+}
+.appearance-preview[data-sidebar-style="elevated"] [data-sidebar-panel] {
+  box-shadow: var(--card-shadow-elevated);
+}
+.appearance-preview[data-sidebar-style="subtle"] [data-sidebar-panel] {
+  box-shadow: var(--card-shadow-soft);
+}
+
+/* ---------- Density ---------- */
+:is(html[data-density="compact"], [data-density="compact"]) .btn-primary,
+:is(html[data-density="compact"], [data-density="compact"]) .btn-secondary,
+:is(html[data-density="compact"], [data-density="compact"]) .btn-danger,
+:is(html[data-density="compact"], [data-density="compact"]) .btn-flat {
+  padding-top: var(--density-control-y);
+  padding-bottom: var(--density-control-y);
+  padding-left: var(--density-control-x);
+  padding-right: var(--density-control-x);
+}
+:is(html[data-density="compact"], [data-density="compact"]) .chip {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+:is(html[data-density="compact"], [data-density="compact"]) table :is(th, td) {
+  padding-top: var(--density-row-y);
+  padding-bottom: var(--density-row-y);
+}
+:is(html[data-density="compact"], [data-density="compact"]) .card,
+:is(html[data-density="compact"], [data-density="compact"]) .card-usage {
+  border-radius: calc(var(--radius-card) - 4px);
+}
+.appearance-preview[data-density="comfortable"] .card,
+.appearance-preview[data-density="comfortable"] .card-usage {
+  border-radius: var(--radius-card);
+}
+
+/* ---------- User motion preference ---------- */
+:is(html[data-motion="reduced"], [data-motion="reduced"]) *,
+:is(html[data-motion="reduced"], [data-motion="reduced"]) *::before,
+:is(html[data-motion="reduced"], [data-motion="reduced"]) *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }

@@ -62,8 +62,24 @@ export const COMPLIANCE_STATUS_STYLE: Record<
   ComplianceStatus,
   { text: string; bg: string; dot: string }
 > = {
-  compliant: { text: "#0F6A3C", bg: "#DDF5E7", dot: "#22C55E" },
-  needs_improvement: { text: "#8A5200", bg: "#FFF0D1", dot: "#F59E0B" },
-  needs_attention: { text: "#A82222", bg: "#FDE5E5", dot: "#EF4444" },
-  not_applicable: { text: "#44506A", bg: "#EEF2F8", dot: "#CBD5E1" },
+  compliant: {
+    text: "var(--success)",
+    bg: "var(--success-soft)",
+    dot: "var(--success-solid)",
+  },
+  needs_improvement: {
+    text: "var(--warning)",
+    bg: "var(--warning-soft)",
+    dot: "var(--warning-solid)",
+  },
+  needs_attention: {
+    text: "var(--danger)",
+    bg: "var(--danger-soft)",
+    dot: "var(--danger-solid)",
+  },
+  not_applicable: {
+    text: "var(--secondary-text)",
+    bg: "var(--surface-2)",
+    dot: "var(--border-strong)",
+  },
 };

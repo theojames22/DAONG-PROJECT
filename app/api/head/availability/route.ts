@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { monthWindow } from "@/lib/attendance";
+import { isValidDateKey } from "@/lib/time";
 import { Availability, Profile } from "@/lib/types";
 
 /**
@@ -39,6 +40,10 @@ export async function GET(request: Request) {
   const statusFilter = searchParams.get("status");
   const dateFilter = searchParams.get("date");
 
+  if (dateFilter && !isValidDateKey(dateFilter)) {
+    return NextResponse.json({ error: "Invalid date." }, { status: 400 });
+  }
+
   // ---- People who submit availability: Staff and Heads --------------
   let peopleQuery = supabase
     .from("profiles")
@@ -69,6 +74,10 @@ export async function GET(request: Request) {
   }
 
   // ---- Availability rows for the requested window ---------------------
+  // This returns the real rows only. The client applies the shared
+  // date + status rules from lib/availability: a person is available on a
+  // date only when they have an actual row for that date whose status is not
+  // 'unavailable'. Missing rows are therefore never treated as available.
   let rowsQuery = supabase
     .from("availability")
     .select("*")

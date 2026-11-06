@@ -2,8 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { ChevronRight, Trophy, X } from "lucide-react";
-import { Profile } from "@/lib/types";
-import { creditedPercent, formatHours, formatPercent } from "@/lib/attendance";
+import {
+  creditedPercent,
+  formatHours,
+  formatPercent,
+  formatPercentValue,
+} from "@/lib/attendance";
+import type {
+  LeaderboardCandidate,
+  RankedLeaderboardEntry,
+} from "@/lib/leaderboard";
 import ModalShell from "@/components/shared/ModalShell";
 import styles from "@/app/head/workforce/workforce.module.css";
 
@@ -11,20 +19,17 @@ import styles from "@/app/head/workforce/workforce.module.css";
 const DEFAULT_VISIBLE = 3;
 
 export interface WeeklyLeaderboardProps {
-  employees: Profile[];
-  creditedByEmployee: Record<string, number>;
-  recordedByEmployee: Record<string, number>;
+  /** Server-ranked by capped completion of each Staff member's own target. */
+  entries: RankedLeaderboardEntry[];
+  /** Staff with no usable weekly requirement; excluded from the ranking. */
+  notApplicable: LeaderboardCandidate[];
   activeEmployeeIds: string[];
   weekStart: string;
   weekEnd: string;
 }
 
 interface LeaderboardRowProps {
-  employee: Profile;
-  rank: number;
-  credited: number;
-  recorded: number;
-  required: number;
+  entry: RankedLeaderboardEntry;
   isClockedIn: boolean;
 }
 
@@ -33,40 +38,37 @@ interface LeaderboardRowProps {
  * list and the full leaderboard modal always render identical data,
  * alignment and progress bars.
  */
-function LeaderboardRow({
-  employee,
-  rank,
-  credited,
-  recorded,
-  required,
-  isClockedIn,
-}: LeaderboardRowProps) {
-  const pct = creditedPercent(credited, required);
-  const shortHours = Math.max(0, required - credited);
-  const initial = (employee.full_name || "E").charAt(0).toUpperCase();
+function LeaderboardRow({ entry, isClockedIn }: LeaderboardRowProps) {
+  const credited = entry.creditedHours;
+  const recorded = entry.recordedHours;
+  const required = entry.requiredHours;
+  const targetMet = entry.completionPercent >= 100;
+  const shortHours = targetMet ? 0 : Math.max(0, required - credited);
+  const overTarget = entry.actualPercent > 100;
+  const initial = (entry.full_name || "E").charAt(0).toUpperCase();
 
   return (
     <div
-      className={`flex min-h-[64px] flex-wrap items-center gap-3 rounded-xl px-2.5 py-2 sm:flex-nowrap sm:gap-4 sm:px-3 ${styles.lbRow}`}
+      className={`flex min-h-[68px] flex-wrap items-center gap-3 rounded-xl px-2.5 py-2 sm:flex-nowrap sm:gap-4 sm:px-3 ${styles.lbRow}`}
     >
       {/* Rank badge */}
       <span
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-          rank === 1
+          entry.rank === 1
             ? "bg-blue-600 text-white shadow-sm"
             : "bg-slate-100 text-slate-600"
         }`}
       >
-        {rank}
+        {entry.rank}
       </span>
 
       {/* Avatar */}
       <div className="relative shrink-0">
-        {employee.profile_picture_url ? (
+        {entry.profile_picture_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={employee.profile_picture_url}
-            alt={employee.full_name || "Avatar"}
+            src={entry.profile_picture_url}
+            alt={entry.full_name || "Avatar"}
             className="h-10 w-10 rounded-full border border-slate-200 object-cover"
           />
         ) : (
@@ -85,58 +87,64 @@ function LeaderboardRow({
       {/* Name & Position */}
       <div className="min-w-[100px] shrink-0 sm:w-28">
         <p className="truncate text-sm font-bold text-slate-900">
-          {employee.full_name || "Unnamed"}
+          {entry.full_name || "Unnamed"}
         </p>
         <p className="truncate text-xs font-medium capitalize text-slate-400">
-          {employee.position || employee.role || "Employee"}
+          {entry.position || "Employee"}
         </p>
       </div>
 
-      {/* Progress Bar & Stats */}
-      <div className="flex min-w-[140px] flex-1 flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-3 text-xs">
+      {/* Progress Bar & Supporting Hours */}
+      <div className="flex min-w-[150px] flex-1 flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-3 text-[11px]">
           <span className="truncate font-semibold text-slate-700">
-            {formatHours(credited)} credited / {formatHours(required)}
+            {formatHours(credited)} credited / {formatHours(required)} required
           </span>
-          <span className="shrink-0 font-bold text-blue-600">
-            {formatPercent(pct)}
+          <span className="shrink-0 font-medium text-slate-400">
+            {formatHours(recorded)} recorded
           </span>
         </div>
 
         <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
           <div
             className={`h-full rounded-full bg-blue-600 ${styles.barFill}`}
-            style={{ width: `${pct}%` }}
+            style={{ width: `${entry.completionPercent}%` }}
           />
         </div>
-
-        <span className="text-[10.5px] font-medium text-slate-400">
-          {formatHours(recorded)} recorded
-        </span>
       </div>
 
-      {/* Warning Badge / Remaining Hours */}
-      <div className="shrink-0 pl-1">
-        {shortHours > 0 ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-            Short {formatHours(shortHours)}
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Target Met
-          </span>
+      {/* Completion percentage + indicator */}
+      <div className="ml-auto shrink-0 pl-1 text-right">
+        <p className="text-xl font-black leading-none tabular-nums text-blue-600">
+          {formatPercent(entry.completionPercent)}
+        </p>
+        {overTarget && (
+          <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+            {formatPercentValue(entry.actualPercent)} actual
+          </p>
         )}
+        <span
+          className={`mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+            targetMet
+              ? "bg-emerald-50 text-emerald-600"
+              : "bg-rose-50 text-rose-600"
+          }`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              targetMet ? "bg-emerald-500" : "bg-rose-500"
+            }`}
+          />
+          {targetMet ? "Target met" : `Short ${formatHours(shortHours)}`}
+        </span>
       </div>
     </div>
   );
 }
 
 export default function WeeklyLeaderboard({
-  employees,
-  creditedByEmployee,
-  recordedByEmployee,
+  entries,
+  notApplicable,
   activeEmployeeIds,
   weekStart,
   weekEnd,
@@ -144,35 +152,22 @@ export default function WeeklyLeaderboard({
   const [showFull, setShowFull] = useState(false);
   const activeSet = useMemo(() => new Set(activeEmployeeIds), [activeEmployeeIds]);
 
-  // Only Staff carry an attendance requirement; Heads are administrators
-  // and are excluded from the attendance ranking.
-  const eligibleEmployees = useMemo(() => {
-    return employees.filter((e) => e.role === "staff");
-  }, [employees]);
-
-  // Team totals: credited hours drive the target percentage, recorded hours
-  // are shown separately as context.
+  // Team totals use the ranked (applicable) Staff for credited/required, while
+  // recorded hours include everyone so uncredited work is still visible.
   const { totalCredited, totalRecorded, totalRequired, targetPct } = useMemo(() => {
-    const credited = eligibleEmployees.reduce(
-      (sum, e) => sum + (creditedByEmployee[e.id] ?? 0),
+    const credited = entries.reduce((sum, entry) => sum + entry.creditedHours, 0);
+    const recorded = [...entries, ...notApplicable].reduce(
+      (sum, entry) => sum + entry.recordedHours,
       0
     );
-    const recorded = eligibleEmployees.reduce(
-      (sum, e) => sum + (recordedByEmployee[e.id] ?? 0),
-      0
-    );
-    const required = eligibleEmployees.reduce(
-      (sum, e) => sum + (e.required_weekly_hours ?? 0),
-      0
-    );
-    const pct = creditedPercent(credited, required);
+    const required = entries.reduce((sum, entry) => sum + entry.requiredHours, 0);
     return {
       totalCredited: credited,
       totalRecorded: recorded,
       totalRequired: required,
-      targetPct: pct,
+      targetPct: creditedPercent(credited, required),
     };
-  }, [eligibleEmployees, creditedByEmployee, recordedByEmployee]);
+  }, [entries, notApplicable]);
 
   // Format week date range: e.g. "Oct 12 – Oct 18"
   const dateRangeStr = useMemo(() => {
@@ -194,34 +189,23 @@ export default function WeeklyLeaderboard({
     }
   }, [weekStart, weekEnd]);
 
-  // Rank employees by credited hours descending
-  const rankedEmployees = useMemo(() => {
-    return [...eligibleEmployees].sort((a, b) => {
-      const hoursA = creditedByEmployee[a.id] ?? 0;
-      const hoursB = creditedByEmployee[b.id] ?? 0;
-      if (hoursB !== hoursA) return hoursB - hoursA;
-      // Tie breakers
-      const reqA = a.required_weekly_hours ?? 0;
-      const reqB = b.required_weekly_hours ?? 0;
-      if (reqB !== reqA) return reqB - reqA;
-      return (a.full_name || "").localeCompare(b.full_name || "");
-    });
-  }, [eligibleEmployees, creditedByEmployee]);
+  // `entries` is already sorted and ranked on the server. Slice only for the
+  // compact card; the full modal renders the exact same ordered array.
+  const visibleEntries = entries.slice(0, DEFAULT_VISIBLE);
+  const hasMore = entries.length > DEFAULT_VISIBLE;
+  const canOpenFull = hasMore || notApplicable.length > 0;
 
-  const visibleEmployees = rankedEmployees.slice(0, DEFAULT_VISIBLE);
-  const hasMore = rankedEmployees.length > DEFAULT_VISIBLE;
-
-  const renderRow = (emp: Profile, idx: number) => (
+  const renderRow = (entry: RankedLeaderboardEntry) => (
     <LeaderboardRow
-      key={emp.id}
-      employee={emp}
-      rank={idx + 1}
-      credited={creditedByEmployee[emp.id] ?? 0}
-      recorded={recordedByEmployee[emp.id] ?? 0}
-      required={emp.required_weekly_hours ?? 0}
-      isClockedIn={activeSet.has(emp.id)}
+      key={entry.id}
+      entry={entry}
+      isClockedIn={activeSet.has(entry.id)}
     />
   );
+
+  const notApplicableNames = notApplicable
+    .map((entry) => entry.full_name || "Unnamed")
+    .join(", ");
 
   return (
     <div className="w-full rounded-3xl border border-slate-100 bg-white p-5 shadow-sm transition-all sm:p-7">
@@ -269,7 +253,7 @@ export default function WeeklyLeaderboard({
                 {formatPercent(targetPct)} of target
               </span>
               <span className="font-medium text-slate-400">
-                {eligibleEmployees.length} Staff
+                {entries.length} Staff ranked
               </span>
             </div>
           </div>
@@ -279,39 +263,45 @@ export default function WeeklyLeaderboard({
         <div className="flex flex-col lg:col-span-8 lg:pl-2">
           <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-              Ranked by hours this week
+              Ranked by completion this week
             </span>
             <span className="text-xs font-medium text-slate-400">
               Resets every Monday
             </span>
           </div>
 
-          {rankedEmployees.length === 0 ? (
+          {entries.length === 0 ? (
             <div className="py-10 text-center text-xs font-medium text-slate-400">
-              No eligible employees logged for attendance yet.
+              No Staff with a weekly requirement to rank.
             </div>
           ) : (
-            <>
-              <div className="flex flex-col gap-1.5">
-                {visibleEmployees.map(renderRow)}
-              </div>
+            <div className="flex flex-col gap-1.5">
+              {visibleEntries.map(renderRow)}
+            </div>
+          )}
 
-              {hasMore && (
-                <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5">
-                  <span className="text-[11px] font-medium text-slate-400">
-                    Showing top {DEFAULT_VISIBLE} of {rankedEmployees.length} Staff
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowFull(true)}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-bold text-blue-600 transition-colors hover:bg-blue-50"
-                  >
-                    See full leaderboard
-                    <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
-                  </button>
-                </div>
-              )}
-            </>
+          {canOpenFull && (
+            <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5">
+              <span className="text-[11px] font-medium text-slate-400">
+                {hasMore
+                  ? `Showing top ${DEFAULT_VISIBLE} of ${entries.length} Staff`
+                  : `${notApplicable.length} Staff not applicable`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowFull(true)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-bold text-blue-600 transition-colors hover:bg-blue-50"
+              >
+                See full leaderboard
+                <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+              </button>
+            </div>
+          )}
+
+          {notApplicable.length > 0 && (
+            <p className="mt-2 text-[10px] font-medium leading-relaxed text-slate-400">
+              Not Applicable — no weekly requirement: {notApplicableNames}
+            </p>
           )}
         </div>
       </div>
@@ -334,7 +324,7 @@ export default function WeeklyLeaderboard({
                 id="full-leaderboard-title"
                 className="mt-0.5 text-lg font-bold text-slate-900"
               >
-                Full ranking
+                Full ranking by completion
               </h2>
               <p className="mt-0.5 text-xs font-medium text-slate-400">
                 {dateRangeStr} · Resets every Monday
@@ -351,9 +341,7 @@ export default function WeeklyLeaderboard({
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/60 px-5 py-2.5 text-[11px] font-medium text-slate-500 sm:px-6">
-            <span>
-              {rankedEmployees.length} Staff ranked
-            </span>
+            <span>{entries.length} Staff ranked</span>
             <span>
               {formatHours(totalCredited)} credited of{" "}
               {formatHours(totalRequired)} required
@@ -366,9 +354,35 @@ export default function WeeklyLeaderboard({
             tabIndex={0}
             className="min-h-0 max-h-[60vh] flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/30 sm:px-3"
           >
-            <div className="flex flex-col gap-1.5">
-              {rankedEmployees.map(renderRow)}
-            </div>
+            {entries.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {entries.map(renderRow)}
+              </div>
+            )}
+
+            {notApplicable.length > 0 && (
+              <div className="mx-1 mt-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-3 py-3 sm:mx-2">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Not Applicable — no weekly requirement
+                </p>
+                <ul className="mt-1.5 flex flex-col gap-1">
+                  {notApplicable.map((entry) => (
+                    <li
+                      key={entry.id}
+                      className="flex items-center justify-between gap-3 text-xs"
+                    >
+                      <span className="min-w-0 truncate font-semibold text-slate-600">
+                        {entry.full_name || "Unnamed"}
+                      </span>
+                      <span className="shrink-0 text-[10.5px] font-medium text-slate-400">
+                        {formatHours(entry.creditedHours)} credited ·{" "}
+                        {formatHours(entry.recordedHours)} recorded
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </ModalShell>

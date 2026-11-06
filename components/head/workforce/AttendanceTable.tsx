@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, ChevronDown, Clock3, Hourglass, XCircle } from "lucide-react";
 import { Profile, Session, Output } from "@/lib/types";
-import { formatHours } from "@/lib/attendance";
+import { formatHours, requiredHoursInfo } from "@/lib/attendance";
 import { OutputStatusPill } from "@/components/StatusPill";
 import SubmissionAction from "@/components/shared/SubmissionAction";
 import { createClient } from "@/lib/supabase/client";
@@ -16,7 +16,7 @@ export interface AttendanceRow {
   statusKind: "active" | "out" | "none";
   hoursToday: number;
   hoursWeek: number;
-  requiredWeeklyHours: number;
+  requiredWeeklyHours: number | null;
   creditedHours?: number;
   sessions: Session[];
   outputs: Output[];
@@ -184,7 +184,23 @@ export default function AttendanceTable({
     return rows;
   }, [rows, filter]);
 
-  const defaultWeeklyTarget = rows[0]?.requiredWeeklyHours || 40.0;
+  const positiveTargets = Array.from(
+    new Set(
+      rows
+        .map((row) => requiredHoursInfo(row.requiredWeeklyHours))
+        .filter(
+          (requirement) =>
+            requirement.status === "configured" && requirement.hours !== null
+        )
+        .map((requirement) => requirement.hours as number)
+    )
+  );
+  const targetSummary =
+    positiveTargets.length === 0
+      ? "No weekly targets set"
+      : positiveTargets.length === 1
+        ? `Weekly target ${formatHours(positiveTargets[0])}`
+        : "Individual weekly targets";
 
   return (
     <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all animate-fade-in">
@@ -291,14 +307,15 @@ export default function AttendanceTable({
             const SubIcon = sub.icon;
 
             const creditedWeek = row.creditedHours ?? 0;
+            const requirement = requiredHoursInfo(row.requiredWeeklyHours);
+            const hasTarget = requirement.status === "configured";
+            const requiredHours = requirement.hours ?? 0;
             // Compliance progress is always credited hours. Recorded hours
-            // (row.hoursWeek) are shown below it as context.
-            const weekPct = Math.min(
-              100,
-              row.requiredWeeklyHours > 0
-                ? (creditedWeek / row.requiredWeeklyHours) * 100
-                : 0
-            );
+            // (row.hoursWeek) are shown below it as context. No target means
+            // no percentage is calculated.
+            const weekPct = hasTarget
+              ? Math.min(100, (creditedWeek / requiredHours) * 100)
+              : 0;
 
             const isOpen = expanded === row.profile.id;
 
@@ -390,25 +407,28 @@ export default function AttendanceTable({
 
                   {/* 4. Weekly progress: credited ratio + progress bar */}
                   <div>
-                    {row.hoursWeek === 0 && creditedWeek === 0 ? (
-                      <span className="text-sm text-slate-400 font-normal">—</span>
-                    ) : (
-                      <div>
-                        <p className="text-xs font-semibold text-slate-800">
-                          {creditedWeek.toFixed(1)} credited /{" "}
-                          {row.requiredWeeklyHours.toFixed(1)}h ({Math.round(weekPct)}%)
-                        </p>
-                        <div className="mt-1.5 h-1.5 w-36 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-blue-600 transition-all duration-500"
-                            style={{ width: `${weekPct}%` }}
-                          />
-                        </div>
-                        <p className="mt-1 text-[11px] text-slate-400">
-                          {row.hoursWeek.toFixed(1)}h recorded
-                        </p>
+                    <p className="text-xs font-semibold text-slate-800">
+                      {hasTarget
+                        ? `${creditedWeek.toFixed(1)} credited / ${requiredHours.toFixed(1)}h (${Math.round(weekPct)}%)`
+                        : `${creditedWeek.toFixed(1)}h credited`}
+                    </p>
+                    {hasTarget ? (
+                      <div className="mt-1.5 h-1.5 w-36 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                          style={{ width: `${weekPct}%` }}
+                        />
                       </div>
+                    ) : (
+                      <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                        {requirement.status === "not_applicable"
+                          ? "No required hours"
+                          : "Not configured"}
+                      </p>
                     )}
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {row.hoursWeek.toFixed(1)}h recorded
+                    </p>
                   </div>
 
                   {/* 5. Output: Title in blue bold + Subtext */}
@@ -524,9 +544,7 @@ export default function AttendanceTable({
         <span>
           Showing {filteredRows.length} of {rows.length} employees
         </span>
-        <span>
-          Weekly target {defaultWeeklyTarget.toFixed(1)}h
-        </span>
+        <span>{targetSummary}</span>
       </div>
     </div>
   );

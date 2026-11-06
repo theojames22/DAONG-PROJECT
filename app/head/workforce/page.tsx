@@ -4,6 +4,7 @@ import { getAuthenticatedProfile, ProfileMissingError } from "@/lib/auth-utils";
 import { USER_ROLES } from "@/lib/constants";
 import { Profile, Session, Output, WeekHours } from "@/lib/types";
 import { totalHours } from "@/lib/attendance";
+import { rankByCompletion } from "@/lib/leaderboard";
 import {
   dateKeyIn,
   dayEndISO,
@@ -155,8 +156,24 @@ export default async function WorkforcePage({
     )
   );
 
-  // ---- List View data: attendance rows for the selected date/week ----
   const staff = employees.filter((e) => e.role === "staff");
+
+  // ---- Weekly leaderboard: completion of each Staff member's own target ----
+  // The server ranks once and passes the result down, so the compact top-three
+  // list and the full modal always use the exact same percentage ordering.
+  const leaderboard = rankByCompletion(
+    staff.map((staffProfile) => ({
+      id: staffProfile.id,
+      full_name: staffProfile.full_name,
+      position: staffProfile.position,
+      profile_picture_url: staffProfile.profile_picture_url ?? null,
+      creditedHours: creditedByEmployee[staffProfile.id] ?? 0,
+      recordedHours: recordedByEmployee[staffProfile.id] ?? 0,
+      requiredHours: staffProfile.required_weekly_hours,
+    }))
+  );
+
+  // ---- List View data: attendance rows for the selected date/week ----
 
   const creditedByEmployeeSelected = new Map<string, number>(
     selectedWeekHours.map((w) => [w.employee_id, Number(w.credited_hours) || 0])
@@ -204,7 +221,7 @@ export default async function WorkforcePage({
       statusKind,
       hoursToday: totalHours(eToday),
       hoursWeek: totalHours(eWeek),
-      requiredWeeklyHours: staffProfile.required_weekly_hours || 40,
+      requiredWeeklyHours: staffProfile.required_weekly_hours,
       creditedHours: creditedByEmployeeSelected.get(staffProfile.id) ?? 0,
       sessions: eToday,
       outputs: eOutputs,
@@ -270,6 +287,8 @@ export default async function WorkforcePage({
           employees={employees}
           creditedByEmployee={creditedByEmployee}
           recordedByEmployee={recordedByEmployee}
+          leaderboardEntries={leaderboard.ranked}
+          leaderboardNotApplicable={leaderboard.notApplicable}
           activeEmployeeIds={activeEmployeeIds}
           weekStart={weekStart}
           weekEnd={weekEnd}

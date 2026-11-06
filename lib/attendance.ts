@@ -32,20 +32,84 @@ export function formatHours(hours: number): string {
   return `${hours.toFixed(1)}h`;
 }
 
+export type RequiredHoursStatus =
+  | "configured"
+  | "not_applicable"
+  | "not_configured";
+
+export type RequiredHoursInput = number | string | null | undefined;
+
+export interface RequiredHoursInfo {
+  status: RequiredHoursStatus;
+  /** The actual target when configured, 0 when not applicable, null when missing. */
+  hours: number | null;
+}
+
+/**
+ * Classifies a weekly requirement without inventing a fallback. An explicit
+ * zero is a valid "no requirement" value; only a missing or malformed value
+ * is treated as "not configured".
+ */
+export function requiredHoursInfo(value: RequiredHoursInput): RequiredHoursInfo {
+  if (value === null || value === undefined || value === "") {
+    return { status: "not_configured", hours: null };
+  }
+
+  const hours = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(hours) || hours < 0) {
+    return { status: "not_configured", hours: null };
+  }
+  if (hours === 0) {
+    return { status: "not_applicable", hours: 0 };
+  }
+  return { status: "configured", hours };
+}
+
+/** The numeric target to use in calculations. Missing/zero requirements are 0. */
+export function requiredHoursTarget(value: RequiredHoursInput): number {
+  return requiredHoursInfo(value).hours ?? 0;
+}
+
+/** Human-readable requirement: "40.0h", "No required hours", or "Not configured". */
+export function requiredHoursLabel(value: RequiredHoursInput): string {
+  const requirement = requiredHoursInfo(value);
+  if (requirement.status === "configured" && requirement.hours !== null) {
+    return formatHours(requirement.hours);
+  }
+  if (requirement.status === "not_applicable") {
+    return "No required hours";
+  }
+  return "Not configured";
+}
+
 /**
  * Exact completion percentage against a required target — no rounding and
- * no artificial minimum, so 1.3 of 40 hours is 3.25 (not 3). 0 required
- * yields 0 (never divide by zero).
+ * no artificial minimum, so 1.3 of 40 hours is 3.25 (not 3). A zero or
+ * missing requirement yields 0 (never divide by zero and never invent 40).
  */
-export function creditedPercent(creditedHours: number, requiredHours: number): number {
-  if (requiredHours <= 0) return 0;
-  return Math.max(0, Math.min(100, (creditedHours / requiredHours) * 100));
+export function creditedPercent(
+  creditedHours: number,
+  requiredHours: RequiredHoursInput
+): number {
+  const target = requiredHoursTarget(requiredHours);
+  if (target <= 0) return 0;
+  return Math.max(0, Math.min(100, (creditedHours / target) * 100));
 }
 
 /** Formats an exact percentage for display: 3.25 → "3.25%", 100 → "100%". */
 export function formatPercent(value: number): string {
   const clamped = Math.max(0, Math.min(100, value));
   return `${Number(clamped.toFixed(2))}%`;
+}
+
+/**
+ * Formats an uncapped percentage: 125 → "125%", 100.5 → "100.5%".
+ * Use this only where the real over-target value is intentionally shown;
+ * ranking percentages should stay capped with `formatPercent`.
+ */
+export function formatPercentValue(value: number): string {
+  if (!Number.isFinite(value)) return "0%";
+  return `${Number(Math.max(0, value).toFixed(2))}%`;
 }
 
 /** Add `days` to a YYYY-MM-DD date key, returning another local date key. */
@@ -84,17 +148,24 @@ export function formatWeekBadge(weekStart: string, weekEnd: string): string {
  * updated can never double count — each day's hours are summed at most
  * once, and a decision merely re-satisfies the join.
  */
-export function creditedProgress(creditedHours: number, requiredHours: number) {
-  const target = requiredHours > 0 ? requiredHours : 0;
-  const percentMet =
-    target > 0 ? Math.min(Math.round((creditedHours / target) * 100), 100) : 0;
-  const remainingHours = Math.max(0, target - creditedHours);
+export function creditedProgress(
+  creditedHours: number,
+  requiredHours: RequiredHoursInput
+) {
+  const requirement = requiredHoursInfo(requiredHours);
+  const hasTarget = requirement.status === "configured";
+  const target = requirement.hours ?? 0;
+  const percentMet = hasTarget
+    ? Math.min(Math.round((creditedHours / target) * 100), 100)
+    : 0;
+  const remainingHours = hasTarget ? Math.max(0, target - creditedHours) : 0;
   return {
+    status: requirement.status,
     required: target,
     creditedHours,
     percentMet,
     remainingHours,
-    targetMet: target > 0 && creditedHours >= target,
+    targetMet: hasTarget && creditedHours >= target,
   };
 }
 

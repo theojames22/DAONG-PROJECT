@@ -35,7 +35,7 @@ export default function EditEmployeeModal({
 
   const [fullName, setFullName] = useState("");
   const [position, setPosition] = useState("");
-  const [requiredHours, setRequiredHours] = useState(40);
+  const [requiredHours, setRequiredHours] = useState<number | null>(null);
 
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
@@ -50,7 +50,7 @@ export default function EditEmployeeModal({
     if (employee) {
       setFullName(employee.full_name || "");
       setPosition(employee.position || "");
-      setRequiredHours(employee.required_weekly_hours ?? 40);
+      setRequiredHours(employee.required_weekly_hours ?? null);
       setError(null);
     }
   }, [employee, open]);
@@ -67,15 +67,30 @@ export default function EditEmployeeModal({
 
   if (!open || !employee) return null;
 
+  const normalizedPosition = position.trim().toLowerCase();
+  const isStaffPosition = normalizedPosition === "staff";
+  const isHead = normalizedPosition === "head";
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!employee) return;
     setError(null);
+
+    if (!normalizedPosition) {
+      setError("Select a position.");
+      return;
+    }
+    if (isStaffPosition && requiredHours === null) {
+      setError("Choose the required weekly hours for Staff. Use 0 for no requirement.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       // Position determines the dashboard and permissions —
-      // the API derives the auth role from it.
+      // the API derives the auth role from it. Heads always carry 0.
+      const weeklyHours = isHead ? 0 : (requiredHours as number);
       const res = await fetch("/api/head/employees", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -83,7 +98,7 @@ export default function EditEmployeeModal({
           id: employee.id,
           full_name: fullName.trim(),
           position: position.trim(),
-          required_weekly_hours: Number(requiredHours),
+          required_weekly_hours: weeklyHours,
         }),
       });
 
@@ -104,21 +119,22 @@ export default function EditEmployeeModal({
   }
 
   const handleStepHours = (delta: number) => {
-    setRequiredHours((prev) => Math.max(0, Math.min(80, prev + delta)));
+    setRequiredHours((prev) =>
+      Math.max(0, Math.min(80, (prev ?? 0) + delta))
+    );
   };
 
-  // Heads are administrators and have no weekly requirement — Staff
-  // clock in/out and keep a target.
+  // Heads are administrators and have no weekly requirement. When switching
+  // away from Head, clear the automatic 0 so the Head must choose a target
+  // for Staff (0 remains available as an explicit Not Applicable choice).
   const handlePositionChange = (newPos: string) => {
     setPosition(newPos);
-    if (newPos === "head") {
+    if (newPos.trim().toLowerCase() === "head") {
       setRequiredHours(0);
-    } else if (requiredHours === 0) {
-      setRequiredHours(40);
+    } else if (isHead && requiredHours === 0) {
+      setRequiredHours(null);
     }
   };
-
-  const isHead = position === "head";
 
   return (
     <ModalShell
@@ -204,9 +220,19 @@ export default function EditEmployeeModal({
 
               <div className="text-right shrink-0">
                 <p className="text-2xl font-black text-white tabular-nums tracking-tight">
-                  {requiredHours}.0h
+                  {requiredHours === null
+                    ? "—"
+                    : requiredHours === 0
+                      ? "0h"
+                      : `${requiredHours}.0h`}
                 </p>
-                <p className="text-[10.5px] font-medium text-blue-100">required / week</p>
+                <p className="text-[10.5px] font-medium text-blue-100">
+                  {requiredHours === null
+                    ? "set required / week"
+                    : requiredHours === 0
+                      ? "Not Applicable"
+                      : "required / week"}
+                </p>
               </div>
             </div>
           </div>
@@ -279,8 +305,15 @@ export default function EditEmployeeModal({
                   type="number"
                   min={0}
                   max={80}
-                  value={requiredHours}
-                  onChange={(e) => setRequiredHours(Math.max(0, Number(e.target.value) || 0))}
+                  value={requiredHours ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setRequiredHours(
+                      next === ""
+                        ? null
+                        : Math.max(0, Math.min(80, Number(next) || 0))
+                    );
+                  }}
                   className={`h-9 w-16 rounded-xl border border-slate-200 text-center font-bold text-slate-900 outline-none text-sm ${styles.field}`}
                 />
                 <button
@@ -306,13 +339,14 @@ export default function EditEmployeeModal({
                         : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                     }`}
                   >
-                    {hours === 0 ? "0h (Head)" : `${hours}h`}
+                    {hours === 0 ? "0h (Not Applicable)" : `${hours}h`}
                   </button>
                 ))}
               </div>
             </div>
             <p className="mt-1 text-[11.5px] leading-relaxed text-slate-400">
-              Set it to 0 for a Head, who only manages the team.
+              Heads always use 0. For Staff, 0 is a valid choice and means Not
+              Applicable; otherwise use their real weekly requirement.
             </p>
           </div>
         </form>
@@ -330,7 +364,7 @@ export default function EditEmployeeModal({
           <button
             type="submit"
             form="edit-employee-form"
-            disabled={isSubmitting}
+            disabled={isSubmitting || (isStaffPosition && requiredHours === null)}
             className="flex items-center gap-2 rounded-full bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition-all disabled:opacity-50"
           >
             {isSubmitting ? (

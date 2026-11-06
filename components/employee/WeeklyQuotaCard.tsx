@@ -1,8 +1,10 @@
 "use client";
 
+import { requiredHoursInfo } from "@/lib/attendance";
+
 interface WeeklyQuotaCardProps {
   hoursThisWeek: number;
-  requiredWeeklyHours: number;
+  requiredWeeklyHours: number | null;
   /** Hours credited toward the weekly requirement (days with a submitted output). */
   creditedHours: number;
   standbyHours?: number;
@@ -16,25 +18,30 @@ export default function WeeklyQuotaCard({
   standbyHours = 0,
   overtimeHours,
 }: WeeklyQuotaCardProps) {
+  const requirement = requiredHoursInfo(requiredWeeklyHours);
+  const hasTarget = requirement.status === "configured";
+  const hoursTarget = requirement.hours ?? 0;
+  const requirementLabel =
+    requirement.status === "not_applicable" ? "No required hours" : "Not configured";
+
   // --- Attendance hours: raw history, always recorded. ---
-  const hoursTarget = requiredWeeklyHours > 0 ? requiredWeeklyHours : 40;
-  const hoursLoggedPercent = Math.min(
-    Math.round((hoursThisWeek / hoursTarget) * 100),
-    100
-  );
-  const coreShift = Math.min(hoursThisWeek, hoursTarget);
-  const overtime =
-    overtimeHours !== undefined
+  const hoursLoggedPercent = hasTarget
+    ? Math.min(Math.round((hoursThisWeek / hoursTarget) * 100), 100)
+    : 0;
+  const coreShift = hasTarget ? Math.min(hoursThisWeek, hoursTarget) : 0;
+  const overtime = hasTarget
+    ? overtimeHours !== undefined
       ? overtimeHours
-      : Math.max(0, hoursThisWeek - hoursTarget);
+      : Math.max(0, hoursThisWeek - hoursTarget)
+    : 0;
 
   // --- Credited hours: the number that counts toward the requirement. ---
-  const creditedTarget = requiredWeeklyHours > 0 ? requiredWeeklyHours : 0;
-  const creditedPercent =
-    creditedTarget > 0
-      ? Math.min(Math.round((creditedHours / creditedTarget) * 100), 100)
-      : 0;
-  const creditedRemaining = Math.max(0, creditedTarget - creditedHours);
+  const creditedPercent = hasTarget
+    ? Math.min(Math.round((creditedHours / hoursTarget) * 100), 100)
+    : 0;
+  const creditedRemaining = hasTarget
+    ? Math.max(0, hoursTarget - creditedHours)
+    : 0;
 
   return (
     <div className="neu-raised rounded-neu p-5 flex flex-col gap-5">
@@ -45,7 +52,7 @@ export default function WeeklyQuotaCard({
             Attendance Hours
           </span>
           <span className="text-xs font-bold text-accent">
-            {hoursLoggedPercent}% Logged
+            {hasTarget ? `${hoursLoggedPercent}% Logged` : requirementLabel}
           </span>
         </div>
 
@@ -55,7 +62,7 @@ export default function WeeklyQuotaCard({
               {hoursThisWeek.toFixed(1)}
             </span>
             <span className="text-sm font-bold text-ink-subtle">
-              / {hoursTarget.toFixed(1)} Hrs
+              {hasTarget ? `/ ${hoursTarget.toFixed(1)} Hrs` : "Hrs recorded"}
             </span>
           </div>
           <span className="text-xs font-semibold text-ink-muted">
@@ -63,33 +70,43 @@ export default function WeeklyQuotaCard({
           </span>
         </div>
 
-        <div className="elev-pressed mt-3.5 h-2.5 w-full overflow-hidden rounded-full p-0.5">
-          <div
-            className="h-full rounded-full bg-accent transition-all duration-700 ease-out"
-            style={{ width: `${Math.max(hoursLoggedPercent, 0)}%` }}
-          />
-        </div>
+        {hasTarget ? (
+          <div className="elev-pressed mt-3.5 h-2.5 w-full overflow-hidden rounded-full p-0.5">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-700 ease-out"
+              style={{ width: `${Math.max(hoursLoggedPercent, 0)}%` }}
+            />
+          </div>
+        ) : (
+          <p className="mt-3 text-[10.5px] leading-relaxed text-ink-subtle">
+            {requirement.status === "not_applicable"
+              ? "No weekly requirement to measure against. Recorded hours remain visible above."
+              : "Required hours are not configured. Recorded hours remain visible above."}
+          </p>
+        )}
 
-        <div className="mt-5 grid grid-cols-3 divide-x divide-border border-t border-border pt-3 text-center">
-          <div>
-            <p className="text-[10px] font-semibold text-ink-subtle">Core Shift</p>
-            <p className="mt-0.5 text-xs font-bold text-ink">
-              {coreShift.toFixed(1)}h
-            </p>
+        {hasTarget ? (
+          <div className="mt-5 grid grid-cols-3 divide-x divide-border border-t border-border pt-3 text-center">
+            <div>
+              <p className="text-[10px] font-semibold text-ink-subtle">Core Shift</p>
+              <p className="mt-0.5 text-xs font-bold text-ink">
+                {coreShift.toFixed(1)}h
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold text-ink-subtle">Standby</p>
+              <p className="mt-0.5 text-xs font-bold text-ink">
+                {standbyHours.toFixed(1)}h
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold text-ink-subtle">Overtime</p>
+              <p className="mt-0.5 text-xs font-bold text-ink">
+                {overtime.toFixed(1)}h
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-[10px] font-semibold text-ink-subtle">Standby</p>
-            <p className="mt-0.5 text-xs font-bold text-ink">
-              {standbyHours.toFixed(1)}h
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] font-semibold text-ink-subtle">Overtime</p>
-            <p className="mt-0.5 text-xs font-bold text-ink">
-              {overtime.toFixed(1)}h
-            </p>
-          </div>
-        </div>
+        ) : null}
       </div>
 
       {/* ===== Block 2 — Credited hours toward the weekly requirement ===== */}
@@ -99,7 +116,7 @@ export default function WeeklyQuotaCard({
             Credited Hours
           </span>
           <span className="text-xs font-bold text-accent">
-            {creditedPercent}% Met
+            {hasTarget ? `${creditedPercent}% Met` : requirementLabel}
           </span>
         </div>
 
@@ -109,22 +126,32 @@ export default function WeeklyQuotaCard({
               {creditedHours.toFixed(1)}
             </span>
             <span className="text-sm font-bold text-ink-subtle">
-              / {creditedTarget.toFixed(1)} Hrs Required
+              {hasTarget ? `/ ${hoursTarget.toFixed(1)} Hrs Required` : "Hrs Credited"}
             </span>
           </div>
           <span className="text-xs font-semibold text-ink-muted">
-            {creditedRemaining > 0
-              ? `${creditedRemaining.toFixed(1)}h Remaining`
-              : "Target Met"}
+            {hasTarget
+              ? creditedRemaining > 0
+                ? `${creditedRemaining.toFixed(1)}h Remaining`
+                : "Target Met"
+              : "—"}
           </span>
         </div>
 
-        <div className="elev-pressed mt-3.5 h-2.5 w-full overflow-hidden rounded-full p-0.5">
-          <div
-            className="h-full rounded-full bg-accent transition-all duration-700 ease-out"
-            style={{ width: `${Math.max(creditedPercent, 0)}%` }}
-          />
-        </div>
+        {hasTarget ? (
+          <div className="elev-pressed mt-3.5 h-2.5 w-full overflow-hidden rounded-full p-0.5">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-700 ease-out"
+              style={{ width: `${Math.max(creditedPercent, 0)}%` }}
+            />
+          </div>
+        ) : (
+          <p className="mt-3 text-[10.5px] leading-relaxed text-ink-subtle">
+            {requirement.status === "not_applicable"
+              ? "No weekly requirement to measure against. Credited hours remain visible above."
+              : "Required hours are not configured. Credited hours remain visible above."}
+          </p>
+        )}
 
         <p className="mt-3 text-[10.5px] leading-relaxed text-ink-subtle">
           Attendance hours are credited toward your requirement once you submit

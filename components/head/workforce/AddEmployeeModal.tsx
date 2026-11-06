@@ -33,7 +33,7 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [position, setPosition] = useState("");
-  const [requiredHours, setRequiredHours] = useState(40);
+  const [requiredHours, setRequiredHours] = useState<number | null>(null);
 
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
@@ -57,14 +57,29 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
 
   if (!open) return null;
 
+  const normalizedPosition = position.trim().toLowerCase();
+  const isStaffPosition = normalizedPosition === "staff";
+  const isHeadPosition = normalizedPosition === "head";
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!normalizedPosition) {
+      setError("Select a position.");
+      return;
+    }
+    if (isStaffPosition && requiredHours === null) {
+      setError("Choose the required weekly hours for Staff. Use 0 for no requirement.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       // Position determines the dashboard and permissions —
-      // the API derives the auth role from it.
+      // the API derives the auth role from it. Heads always carry 0.
+      const weeklyHours = isHeadPosition ? 0 : (requiredHours as number);
       const res = await fetch("/api/head/employees", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,7 +88,7 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
           email: email.trim(),
           password,
           position,
-          required_weekly_hours: Number(requiredHours),
+          required_weekly_hours: weeklyHours,
         }),
       });
 
@@ -90,7 +105,7 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
       setEmail("");
       setPassword("");
       setPosition("");
-      setRequiredHours(40);
+      setRequiredHours(null);
       onClose();
       router.refresh();
     } catch (err) {
@@ -101,17 +116,20 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
 
   const handlePositionChange = (newPos: string) => {
     setPosition(newPos);
-    // Heads are administrators and have no required hours — Staff
-    // clock in/out and keep a weekly target.
-    if (newPos.toLowerCase() === "head") {
+    // Heads are administrators and have no required hours. Switching back
+    // to Staff clears the automatic 0 so the Head must choose a real target
+    // (0 is still available as an explicit Not Applicable choice).
+    if (newPos.trim().toLowerCase() === "head") {
       setRequiredHours(0);
-    } else if (requiredHours === 0) {
-      setRequiredHours(40);
+    } else if (isHeadPosition && requiredHours === 0) {
+      setRequiredHours(null);
     }
   };
 
   const handleStepHours = (delta: number) => {
-    setRequiredHours((prev) => Math.max(0, Math.min(80, prev + delta)));
+    setRequiredHours((prev) =>
+      Math.max(0, Math.min(80, (prev ?? 0) + delta))
+    );
   };
 
   return (
@@ -185,9 +203,19 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
 
               <div className="text-right shrink-0">
                 <p className="text-2xl font-black text-white tabular-nums tracking-tight">
-                  {requiredHours}.0h
+                  {requiredHours === null
+                    ? "—"
+                    : requiredHours === 0
+                      ? "0h"
+                      : `${requiredHours}.0h`}
                 </p>
-                <p className="text-[10.5px] font-medium text-blue-100">required / week</p>
+                <p className="text-[10.5px] font-medium text-blue-100">
+                  {requiredHours === null
+                    ? "set required / week"
+                    : requiredHours === 0
+                      ? "Not Applicable"
+                      : "required / week"}
+                </p>
               </div>
             </div>
           </div>
@@ -299,8 +327,15 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
                   type="number"
                   min={0}
                   max={80}
-                  value={requiredHours}
-                  onChange={(e) => setRequiredHours(Math.max(0, Number(e.target.value) || 0))}
+                  value={requiredHours ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setRequiredHours(
+                      next === ""
+                        ? null
+                        : Math.max(0, Math.min(80, Number(next) || 0))
+                    );
+                  }}
                   className={`h-9 w-16 rounded-xl border border-slate-200 text-center font-bold text-slate-900 outline-none text-sm ${styles.field}`}
                 />
                 <button
@@ -315,7 +350,7 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
 
               {/* Quick Select Presets */}
               <div className="flex items-center gap-2">
-                {[40, 30, 20].map((hours) => (
+                {[40, 30, 20, 0].map((hours) => (
                   <button
                     key={hours}
                     type="button"
@@ -326,7 +361,7 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
                         : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                     }`}
                   >
-                    {hours}h
+                    {hours === 0 ? "0h (Not Applicable)" : `${hours}h`}
                   </button>
                 ))}
               </div>
@@ -335,7 +370,8 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
               Attendance hours are always recorded, but only hours on days with a submitted output are credited toward this requirement.
             </p>
             <p className="text-[11.5px] leading-relaxed text-slate-500 -mt-1">
-              Set it to 0 for a Head, who only manages the team.
+              Heads always use 0. For Staff, 0 is a valid choice and means Not
+              Applicable; otherwise choose their real weekly requirement.
             </p>
           </div>
 
@@ -368,7 +404,7 @@ export default function AddEmployeeModal({ open, onClose }: AddEmployeeModalProp
           <button
             type="submit"
             form="add-employee-form"
-            disabled={isSubmitting}
+            disabled={isSubmitting || (isStaffPosition && requiredHours === null)}
             className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95 disabled:opacity-60"
           >
             {isSubmitting ? (

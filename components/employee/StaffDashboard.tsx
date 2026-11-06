@@ -15,7 +15,7 @@ interface TelemetryMetrics {
   // Attendance hours — raw recorded history.
   hoursToday: number;
   hoursThisWeek: number;
-  requiredWeeklyHours: number;
+  requiredWeeklyHours: number | null;
   hoursLoggedPercent: number;
   coreShift: number;
   standbyHours: number;
@@ -88,14 +88,14 @@ export default function StaffDashboard({
   const metrics = telemetryData?.metrics ?? {
     hoursToday: 0,
     hoursThisWeek: 0,
-    requiredWeeklyHours: profile.required_weekly_hours || 40,
+    requiredWeeklyHours: profile.required_weekly_hours,
     hoursLoggedPercent: 0,
     coreShift: 0,
     standbyHours: 0,
     overtimeHours: 0,
     creditedHours: 0,
     creditedPercentMet: 0,
-    creditedRemainingHours: profile.required_weekly_hours || 40,
+    creditedRemainingHours: 0,
     creditedDays: 0,
     attendanceDays: 0,
   };

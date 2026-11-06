@@ -13,6 +13,16 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toDateKey } from "@/lib/attendance";
+import {
+  availablePeopleForDate,
+  groupAvailabilityByDate,
+  isAvailableRow,
+  personDayStatus,
+  rowsForPersonOnDate,
+  type ScheduleDayStatus as DayStatus,
+  type SchedulePerson,
+} from "@/lib/availability";
+import { FALLBACK_TIMEZONE, dateKeyIn } from "@/lib/time";
 import { AvailabilityWithProfile, Profile } from "@/lib/types";
 import LiveClockChip from "@/components/head/dashboard/LiveClockChip";
 import NotificationBell from "@/components/shared/NotificationBell";
@@ -20,33 +30,40 @@ import SettingsModal from "@/components/shared/SettingsModal";
 import ToastStack, { ToastData } from "@/components/ui/Toast";
 import type { Theme } from "@/components/theme/ThemeProvider";
 
-/** Status of one person's availability on one date. */
-type DayStatus = "available" | "partial" | "unavailable" | "none";
-
 const STATUS_STYLES: Record<
   DayStatus,
-  { label: string; chip: string; dot: string; border: string }
+  {
+    label: string;
+    shortLabel: string;
+    chip: string;
+    dot: string;
+    border: string;
+  }
 > = {
   available: {
     label: "Available",
+    shortLabel: "Available",
     chip: "bg-[#DCFCE7] text-[#166534] border-[#86EFAC]",
     dot: "bg-[#22C55E]",
     border: "border-[#86EFAC]",
   },
   partial: {
     label: "Partially available",
+    shortLabel: "Partial",
     chip: "bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]",
     dot: "bg-[#F59E0B]",
     border: "border-[#FCD34D]",
   },
   unavailable: {
     label: "Unavailable",
+    shortLabel: "Unavailable",
     chip: "bg-[#FEE2E2] text-[#991B1B] border-[#FCA5A5]",
     dot: "bg-[#EF4444]",
     border: "border-[#FCA5A5]",
   },
   none: {
     label: "No schedule submitted",
+    shortLabel: "No schedule",
     chip: "bg-[#F1F5F9] text-[#55617F] border-[#E6EBF5]",
     dot: "bg-[#CBD5E1]",
     border: "border-[#E6EBF5]",
@@ -83,7 +100,13 @@ export interface ScheduleManagementProps {
     profile_picture_url: string | null;
     theme_preference?: string | null;
   };
+  /** App timezone from app_settings (Asia/Manila by default). */
+  timezone?: string;
+  /** Server-computed "today" in the app timezone, to avoid hydration drift. */
+  initialTodayKey?: string;
 }
+
+type PanelMode = "all" | "available";
 
 /**
  * Head schedule calendar — everyone's availability, by month.
@@ -93,13 +116,24 @@ export interface ScheduleManagementProps {
  * The view is read-only for other people's schedules: only the owner
  * can edit their own availability.
  */
-export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
-  const [viewMode, setViewMode] = useState<"month" | "list">("month");
-  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
-  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
-  const [selectedDate, setSelectedDate] = useState(() =>
-    toDateKey(new Date().toISOString())
+export default function ScheduleManagement({
+  admin,
+  timezone: timezoneProp,
+  initialTodayKey,
+}: ScheduleManagementProps) {
+  const timezone = timezoneProp || FALLBACK_TIMEZONE;
+  const todayKey = useMemo(
+    () => initialTodayKey || dateKeyIn(timezone),
+    [initialTodayKey, timezone]
   );
+
+  const [viewMode, setViewMode] = useState<"month" | "list">("month");
+  const [viewYear, setViewYear] = useState(() => Number(todayKey.slice(0, 4)));
+  const [viewMonth, setViewMonth] = useState(
+    () => Number(todayKey.slice(5, 7)) - 1
+  );
+  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [panelMode, setPanelMode] = useState<PanelMode>("all");
 
   const [people, setPeople] = useState<Profile[]>([]);
   const [rows, setRows] = useState<AvailabilityWithProfile[]>([]);
@@ -112,7 +146,6 @@ export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
   const loadRef = useRef<() => Promise<void>>(async () => {});
 
   const monthKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
-  const todayKey = useMemo(() => toDateKey(new Date().toISOString()), []);
 
   // ---- Fetch month data (with server-side filters) --------------------
   const load = useCallback(async () => {
@@ -178,33 +211,30 @@ export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
   }, []);
 
   // ---- Derived data ----------------------------------------------------
-  const rowsByDate = useMemo(() => {
-    const map = new Map<string, AvailabilityWithProfile[]>();
-    for (const row of rows) {
-      const arr = map.get(row.date) ?? [];
-      arr.push(row);
-      map.set(row.date, arr);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => a.start_time.localeCompare(b.start_time));
-    }
-    return map;
-  }, [rows]);
+  const rowsByDate = useMemo(() => groupAvailabilityByDate(rows), [rows]);
 
-  /** One person's status for a date: missing ≠ unavailable. */
-  const personDayStatus = useCallback(
-    (personId: string, dateKey: string): DayStatus => {
-      const own = (rowsByDate.get(dateKey) ?? []).filter(
-        (r) => r.employee_id === personId
-      );
-      if (own.length === 0) return "none";
-      const hasAvailable = own.some((r) => r.status !== "unavailable");
-      if (!hasAvailable) return "unavailable";
-      const hasUnavailable = own.some((r) => r.status === "unavailable");
-      return hasUnavailable ? "partial" : "available";
-    },
-    [rowsByDate]
+  /** All Staff: everyone, with their status for the highlighted date. */
+  const allEntries = useMemo(() => {
+    return people.map((person) => {
+      const ownRows = rowsForPersonOnDate(rowsByDate, person.id, selectedDate);
+      return {
+        person: person as SchedulePerson,
+        rows: ownRows,
+        status: personDayStatus(ownRows),
+      };
+    });
+  }, [people, rowsByDate, selectedDate]);
+
+  /** Available: only people with a real available period on that date. */
+  const availableEntries = useMemo(
+    () => availablePeopleForDate(people, rowsByDate, selectedDate),
+    [people, rowsByDate, selectedDate]
   );
+
+  const panelEntries = panelMode === "all" ? allEntries : availableEntries;
+
+  const selectedDayRows = rowsByDate.get(selectedDate) ?? [];
+  const selectedDayHasSubmittedRows = selectedDayRows.length > 0;
 
   /** Aggregate status for a date across everyone in view. */
   const dayAggregate = useCallback(
@@ -223,8 +253,6 @@ export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
     },
     [rowsByDate]
   );
-
-  const selectedRows = rowsByDate.get(selectedDate) ?? [];
 
   const monthTitle = useMemo(
     () =>
@@ -300,30 +328,66 @@ export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
 
   const adminName = admin.full_name || "Head";
 
-  const goToPrevMonth = () => {
-    if (viewMonth === 0) {
-      setViewMonth(11);
-      setViewYear((y) => y - 1);
-    } else {
-      setViewMonth((m) => m - 1);
+  /** Drop a date filter when the calendar itself becomes the date source. */
+  const clearDateFilter = () => {
+    if (!filters.date) return;
+    setLoading(true);
+    setFilters((prev) => ({ ...prev, date: "" }));
+  };
+
+  const changeMonth = (delta: number) => {
+    const next = new Date(Date.UTC(viewYear, viewMonth + delta, 1));
+    const nextYear = next.getUTCFullYear();
+    const nextMonthIndex = next.getUTCMonth();
+    const nextMonthKey = `${nextYear}-${String(nextMonthIndex + 1).padStart(
+      2,
+      "0"
+    )}`;
+
+    setViewYear(nextYear);
+    setViewMonth(nextMonthIndex);
+    setLoading(true);
+    clearDateFilter();
+
+    // Keep the highlighted day inside the visible month so the panel's
+    // status always comes from data that is actually loaded.
+    if (!selectedDate.startsWith(nextMonthKey)) {
+      setSelectedDate(
+        todayKey.startsWith(nextMonthKey) ? todayKey : `${nextMonthKey}-01`
+      );
     }
   };
 
-  const goToNextMonth = () => {
-    if (viewMonth === 11) {
-      setViewMonth(0);
-      setViewYear((y) => y + 1);
-    } else {
-      setViewMonth((m) => m + 1);
-    }
-  };
+  const goToPrevMonth = () => changeMonth(-1);
+  const goToNextMonth = () => changeMonth(1);
 
   const goToToday = () => {
-    const now = new Date();
-    setViewYear(now.getFullYear());
-    setViewMonth(now.getMonth());
-    setSelectedDate(todayKey);
+    const nowKey = dateKeyIn(timezone);
+    if (nowKey.slice(0, 7) !== monthKey) setLoading(true);
+    setViewYear(Number(nowKey.slice(0, 4)));
+    setViewMonth(Number(nowKey.slice(5, 7)) - 1);
+    setSelectedDate(nowKey);
+    clearDateFilter();
   };
+
+  /**
+   * A calendar click is an explicit date selection: show only people with
+   * real availability that day. Leading/trailing cells move the calendar to
+   * their month so the month query loads the correct rows.
+   */
+  const selectDate = (dateKey: string) => {
+    const [year, month] = dateKey.split("-").map(Number);
+    if (dateKey.slice(0, 7) !== monthKey) {
+      setViewYear(year);
+      setViewMonth(month - 1);
+      setLoading(true);
+    }
+    setSelectedDate(dateKey);
+    setPanelMode("available");
+    clearDateFilter();
+  };
+
+  const showAllStaff = () => setPanelMode("all");
 
   /**
    * Month navigation header (label + chevrons + Today). Rendered outside the
@@ -531,6 +595,7 @@ export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
               type="date"
               value={filters.date}
               onChange={(e) => {
+                setLoading(true);
                 setFilters((p) => ({ ...p, date: e.target.value }));
                 if (e.target.value) {
                   const [y, m] = e.target.value.split("-").map(Number);
@@ -556,9 +621,9 @@ export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
 
       {/* ============ Calendar + day detail ============ */}
       {viewMode === "month" ? (
-        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12 xl:items-stretch">
           {/* Calendar */}
-          <section className="card-usage animate-fade-up xl:col-span-8">
+          <section className="card-usage animate-fade-up min-w-0 xl:col-span-8">
                 {renderMonthNav(monthTitle)}
 
                 {loadError ? (
@@ -625,7 +690,7 @@ export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
                           <button
                             type="button"
                             key={cell.dateKey}
-                            onClick={() => setSelectedDate(cell.dateKey)}
+                            onClick={() => selectDate(cell.dateKey)}
                             aria-label={`${cell.dateKey}${
                               cell.status ? `, ${styles.label}` : ""
                             }`}
@@ -698,68 +763,178 @@ export default function ScheduleManagement({ admin }: ScheduleManagementProps) {
             )}
           </section>
 
-              {/* Day detail */}
-              <section className="card-usage animate-fade-up flex flex-col gap-4 xl:col-span-4">
-                <div className="flex items-center justify-between border-b border-[#E6EBF5] px-5 pt-5 pb-3 sm:px-6">
-                  <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#2563EB]">
-                      Selected day
-                    </span>
-                    <h3 className="text-[15px] font-extrabold text-[#0F1B3D]">
-                      {new Date(
-                        `${selectedDate}T00:00:00`
-                      ).toLocaleDateString("en-US", {
-                        weekday: "long",
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </h3>
+              {/* Staff panel — fixed header, internally scrolling list */}
+              <section className="card-usage animate-fade-up flex min-h-0 min-w-0 flex-col overflow-hidden xl:col-span-4">
+                <div className="shrink-0 border-b border-[#E6EBF5] px-5 pb-3 pt-5 sm:px-6">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#2563EB]">
+                        Staff availability
+                      </span>
+                      <h3 className="text-[15px] font-extrabold text-[#0F1B3D]">
+                        {new Date(
+                          `${selectedDate}T00:00:00`
+                        ).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </h3>
+                      <p
+                        className="mt-0.5 text-[11.5px] font-medium text-[#55617F]"
+                        aria-live="polite"
+                      >
+                        {panelMode === "all"
+                          ? `Showing all ${people.length} ${
+                              people.length === 1 ? "person" : "people"
+                            }${hasActiveFilters ? " matching your filters" : ""}`
+                          : `${availableEntries.length} of ${people.length} available on this date`}
+                      </p>
+                    </div>
+
+                    <div
+                      role="group"
+                      aria-label="Staff list filter"
+                      className="inline-flex shrink-0 items-center rounded-full border border-[#E6EBF5] bg-[#F8FAFC] p-0.5"
+                    >
+                      <button
+                        type="button"
+                        onClick={showAllStaff}
+                        aria-pressed={panelMode === "all"}
+                        className={`flex h-7 items-center rounded-full px-2.5 text-[11px] font-semibold transition-colors ${
+                          panelMode === "all"
+                            ? "bg-[#2563EB] text-white shadow-sm"
+                            : "text-[#55617F] hover:text-[#0F1B3D]"
+                        }`}
+                      >
+                        All Staff
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPanelMode("available")}
+                        aria-pressed={panelMode === "available"}
+                        className={`flex h-7 items-center rounded-full px-2.5 text-[11px] font-semibold transition-colors ${
+                          panelMode === "available"
+                            ? "bg-[#2563EB] text-white shadow-sm"
+                            : "text-[#55617F] hover:text-[#0F1B3D]"
+                        }`}
+                      >
+                        Available
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-3 px-5 pb-5 sm:px-6">
-                  {people.length === 0 ? (
-                    <p className="py-6 text-center text-[13px] text-[#55617F]">
-                      No people to show.
-                    </p>
-                  ) : (
-                    people.map((person) => {
-                      const status = personDayStatus(person.id, selectedDate);
-                      const ownRows = (rowsByDate.get(selectedDate) ?? []).filter(
-                        (r) => r.employee_id === person.id
-                      );
-                      const styles = STATUS_STYLES[status];
-                      return (
-                        <div
-                          key={person.id}
-                          className="flex items-center justify-between gap-3 rounded-2xl border border-[#E6EBF5] bg-white px-4 py-3"
+                <div className="min-h-0 flex-1 xl:relative">
+                  <div
+                    role="region"
+                    aria-label="Staff availability list"
+                    tabIndex={0}
+                    className="flex max-h-[60vh] flex-col gap-2.5 overflow-y-auto overflow-x-hidden overscroll-contain px-5 pb-5 pt-4 [scrollbar-gutter:stable] [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563EB]/30 sm:px-6 xl:absolute xl:inset-0 xl:max-h-none"
+                  >
+                    {loading ? (
+                      <div className="flex min-h-[200px] flex-1 items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-[#2563EB]" />
+                        <span className="text-[13px] font-medium text-[#55617F]">
+                          Loading schedules
+                        </span>
+                      </div>
+                    ) : loadError ? (
+                      <p className="rounded-2xl border border-[#FCA5A5] bg-[#FEE2E2] px-4 py-3 text-[13px] font-semibold text-[#991B1B]">
+                        {loadError}
+                      </p>
+                    ) : people.length === 0 ? (
+                      <div className="flex min-h-[220px] flex-1 flex-col items-center justify-center px-2 py-8 text-center">
+                        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E4EDFF] text-[#2563EB]">
+                          <Users className="h-6 w-6" strokeWidth={1.75} />
+                        </span>
+                        <p className="mt-3 text-[13px] font-semibold text-[#55617F]">
+                          No people to show.
+                        </p>
+                      </div>
+                    ) : panelEntries.length === 0 ? (
+                      <div className="flex min-h-[220px] flex-1 flex-col items-center justify-center px-2 py-8 text-center">
+                        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E4EDFF] text-[#2563EB]">
+                          <CalendarDays className="h-6 w-6" strokeWidth={1.75} />
+                        </span>
+                        <h4 className="mt-3 text-[14px] font-bold text-[#0F1B3D]">
+                          No available staff for this date.
+                        </h4>
+                        <p className="mt-1 max-w-[280px] text-[12.5px] leading-relaxed text-[#55617F]">
+                          {selectedDayHasSubmittedRows
+                            ? "Everyone who submitted a schedule is marked unavailable for the selected day."
+                            : "There are no submitted availability schedules for the selected day."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={showAllStaff}
+                          className="neu-focus mt-4 flex h-9 items-center rounded-full border border-[#E6EBF5] bg-[#E4EDFF] px-4 text-[12px] font-semibold text-[#1D4ED8] transition-colors hover:bg-[#D6E4FF]"
                         >
-                          <div className="min-w-0">
-                            <p className="truncate text-[13.5px] font-bold text-[#0F1B3D]">
-                              {person.full_name || "Unnamed"}
-                            </p>
-                            <p className="truncate text-[11.5px] text-[#55617F]">
-                              {person.position || "—"} ·{" "}
-                              {ownRows.length > 0
-                                ? ownRows
-                                    .map(
-                                      (r) =>
-                                        `${formatTime12h(r.start_time)} – ${formatTime12h(r.end_time)}`
-                                    )
-                                    .join(", ")
-                                : "No schedule submitted"}
-                            </p>
-                          </div>
-                          <span
-                            className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${styles.chip}`}
+                          Show all staff
+                        </button>
+                      </div>
+                    ) : (
+                      panelEntries.map(({ person, rows: ownRows, status }) => {
+                        const styles = STATUS_STYLES[status];
+                        return (
+                          <article
+                            key={person.id}
+                            className="flex items-start justify-between gap-3 rounded-2xl border border-[#E6EBF5] bg-white px-4 py-3"
                           >
-                            {status === "none" ? "No schedule" : styles.label}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className="truncate text-[13.5px] font-bold text-[#0F1B3D]"
+                                title={person.full_name || "Unnamed"}
+                              >
+                                {person.full_name || "Unnamed"}
+                              </p>
+                              <p
+                                className="truncate text-[11.5px] text-[#55617F]"
+                                title={person.position || undefined}
+                              >
+                                {person.position || "—"}
+                              </p>
+
+                              {ownRows.length > 0 ? (
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {ownRows.map((row) => {
+                                    const isAvailable = isAvailableRow(row);
+                                    return (
+                                      <span
+                                        key={row.id}
+                                        className={`inline-flex max-w-full items-center rounded-md border px-1.5 py-0.5 text-[10.5px] font-semibold ${
+                                          isAvailable
+                                            ? "border-[#2563EB]/20 bg-[#EAF1FF] text-[#2563EB]"
+                                            : STATUS_STYLES.unavailable.chip
+                                        }`}
+                                      >
+                                        <span className="truncate">
+                                          {formatTime12h(row.start_time)} –{" "}
+                                          {formatTime12h(row.end_time)}
+                                        </span>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="mt-1 text-[11.5px] text-[#94A3B8]">
+                                  No schedule submitted
+                                </p>
+                              )}
+                            </div>
+
+                            <span
+                              className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${styles.chip}`}
+                              title={styles.label}
+                            >
+                              {styles.shortLabel}
+                            </span>
+                          </article>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </section>
             </div>

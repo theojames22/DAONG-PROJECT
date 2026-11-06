@@ -40,14 +40,31 @@ end $$;
 
 -- The old constraint only allowed light/dark. System Mode is now a saved
 -- preference; the concrete light/dark palette is stored independently.
-alter table public.profiles
-  drop constraint if exists profiles_theme_preference_check;
+-- Drop any check constraint that mentions theme_preference, regardless of the
+-- auto-generated name it received when the column was first created.
+do $$
+declare
+  c record;
+begin
+  for c in
+    select conname
+      from pg_constraint
+     where conrelid = 'public.profiles'::regclass
+       and contype = 'c'
+       and pg_get_constraintdef(oid) ilike '%theme_preference%'
+  loop
+    execute format('alter table public.profiles drop constraint %I', c.conname);
+  end loop;
 
-alter table public.profiles
-  add constraint profiles_theme_preference_check
-  check (theme_preference in ('light', 'dark', 'system'));
+  alter table public.profiles
+    add constraint profiles_theme_preference_check
+    check (theme_preference in ('light', 'dark', 'system'));
+end $$;
 
 comment on column public.profiles.appearance_preferences is
   'Per-user advanced appearance JSON: { version, mode, light:{preset,colors}, dark:{preset,colors}, options }. Owned exclusively by the authenticated user.';
+
+-- Make the new column visible to PostgREST immediately after this transaction.
+notify pgrst, 'reload schema';
 
 commit;

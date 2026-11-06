@@ -29,10 +29,9 @@ import TimelineCard, {
 import NeedsAttentionTable, {
   type NeedsAttentionRow,
 } from "@/components/head/dashboard/NeedsAttentionTable";
-import WeeklyLeaderboardCard, {
-  type LeaderboardEntry,
-} from "@/components/head/dashboard/WeeklyLeaderboardCard";
+import WeeklyLeaderboardCard from "@/components/head/dashboard/WeeklyLeaderboardCard";
 import DashboardLiveSync from "@/components/head/dashboard/DashboardLiveSync";
+import { rankByCompletion } from "@/lib/leaderboard";
 
 export default async function HeadPage({
   searchParams,
@@ -133,6 +132,11 @@ export default async function HeadPage({
   const creditedByEmployee = new Map<string, number>(
     weekHoursRows.map((w) => [w.employee_id, Number(w.credited_hours) || 0])
   );
+  // Recorded hours are context only: they include clocked time on days that
+  // never earned credit because no output was submitted. Never rank by these.
+  const recordedByEmployee = new Map<string, number>(
+    weekHoursRows.map((w) => [w.employee_id, Number(w.attendance_hours) || 0])
+  );
 
   const todaysSessionsByEmployee = new Map<string, Session[]>();
   for (const s of allSessions) {
@@ -222,31 +226,25 @@ export default async function HeadPage({
   }));
 
   // ---- Weekly leaderboard (selected week, Staff only) ----
-  // Ranked by CREDITED hours from employee_week_hours — attendance hours on
-  // days that carry a submitted output — never raw logged time. Heads never
-  // appear because `employees` is already scoped to role='staff'.
-  const leaderboardEntries: LeaderboardEntry[] = employees
-    .map((e) => ({
+  // Rank by completion of each Staff member's OWN requirement, not by raw
+  // credited hours. `employee_week_hours` remains the authoritative source;
+  // recorded hours are carried only so the card can show them as context.
+  // Heads never appear because `employees` is scoped to role='staff'.
+  const leaderboard = rankByCompletion(
+    employees.map((e) => ({
       id: e.id,
       full_name: e.full_name,
       position: e.position,
       profile_picture_url: e.profile_picture_url ?? null,
       creditedHours: creditedByEmployee.get(e.id) ?? 0,
-      requiredHours: e.required_weekly_hours ?? 0,
+      recordedHours: recordedByEmployee.get(e.id) ?? 0,
+      requiredHours: e.required_weekly_hours,
     }))
-    // Only Staff with eligible credited hours are ranked — a recorded day
-    // with no submission is not a credited hour, and zero-credit Staff are
-    // omitted rather than shown as placeholders.
-    .filter((entry) => entry.creditedHours > 0)
-    .sort((a, b) => {
-      if (b.creditedHours !== a.creditedHours) {
-        return b.creditedHours - a.creditedHours;
-      }
-      // Ties keep a stable, alphabetical display order (rank is shared).
-      return (a.full_name || "").localeCompare(b.full_name || "");
-    })
-    // Leaderboard shows the top three only.
-    .slice(0, 3);
+  );
+
+  // The dashboard card is deliberately compact: top three ranked Staff only.
+  // The Workforce page exposes the full ranking with the same helper.
+  const leaderboardEntries = leaderboard.ranked.slice(0, 3);
 
   const weekLabel = formatWeekBadge(weekStart, weekEnd);
   // Each card owns the queries it actually reads. A failed profile read makes
@@ -304,6 +302,7 @@ export default async function HeadPage({
         />
         <WeeklyLeaderboardCard
           entries={leaderboardEntries}
+          notApplicable={leaderboard.notApplicable}
           weekLabel={weekLabel}
           prevWeek={addDaysToKey(weekStart, -7)}
           nextWeek={addDaysToKey(weekStart, 7)}

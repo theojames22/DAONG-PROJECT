@@ -1,13 +1,6 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
-import {
-  CheckCircle2,
-  Clock3,
-  Eye,
-  XCircle,
-  type LucideIcon,
-} from "lucide-react";
 import styles from "@/app/employee/outputs/my-outputs.module.css";
 import type { OutputCounts, StatusFilter } from "./my-outputs-ui";
 import {
@@ -28,16 +21,72 @@ interface OutputSummaryCardsProps {
 interface Tile {
   status: "pending" | "checking" | "done" | "rejected";
   countKey: "pending" | "checking" | "approved" | "rejected";
-  icon: LucideIcon;
+  toneClass: string;
   onClass: string;
 }
 
 const TILES: Tile[] = [
-  { status: "pending", countKey: "pending", icon: Clock3, onClass: styles.tileOnPending },
-  { status: "checking", countKey: "checking", icon: Eye, onClass: styles.tileOnChecking },
-  { status: "done", countKey: "approved", icon: CheckCircle2, onClass: styles.tileOnApproved },
-  { status: "rejected", countKey: "rejected", icon: XCircle, onClass: styles.tileOnRejected },
+  {
+    status: "pending",
+    countKey: "pending",
+    toneClass: styles.tilePending,
+    onClass: styles.tileOnPending,
+  },
+  {
+    status: "checking",
+    countKey: "checking",
+    toneClass: styles.tileChecking,
+    onClass: styles.tileOnChecking,
+  },
+  {
+    status: "done",
+    countKey: "approved",
+    toneClass: styles.tileApproved,
+    onClass: styles.tileOnApproved,
+  },
+  {
+    status: "rejected",
+    countKey: "rejected",
+    toneClass: styles.tileRejected,
+    onClass: styles.tileOnRejected,
+  },
 ];
+
+/**
+ * Purely decorative status wave. It has no data points, labels or axis, so it
+ * cannot be mistaken for a real completion trend.
+ */
+function StatusWave() {
+  return (
+    <svg
+      className={styles.tileWave}
+      viewBox="0 0 180 96"
+      fill="none"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M0 60C22 54 36 32 62 36C88 40 98 70 124 68C150 66 160 44 180 50V96H0V60Z"
+        fill="currentColor"
+        opacity="0.1"
+      />
+      <path
+        d="M0 60C22 54 36 32 62 36C88 40 98 70 124 68C150 66 160 44 180 50"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M0 80C26 74 42 56 68 60C94 64 106 86 132 80C154 75 164 62 180 68"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        opacity="0.55"
+      />
+    </svg>
+  );
+}
 
 /**
  * The summary is the dashboard's primary navigation as well as its overview:
@@ -139,7 +188,6 @@ export default function OutputSummaryCards({
         <div className={styles.tileGrid}>
           {TILES.map((tile) => {
             const meta = STATUS_META[tile.status];
-            const Icon = tile.icon;
             const value = counts[tile.countKey];
             const active = activeStatus === tile.status;
 
@@ -156,25 +204,26 @@ export default function OutputSummaryCards({
                 } submission${value === 1 ? "" : "s"}. ${
                   active ? "Showing this stage." : "Filter to this stage."
                 }`}
-                className={`${styles.tile} ${active ? tile.onClass : ""}`}
+                className={`${styles.tile} ${tile.toneClass} ${
+                  active ? tile.onClass : ""
+                }`}
               >
-                <span className="flex items-center justify-between gap-2">
+                <span className={styles.tileTop}>
                   <span className={styles.tileLabel}>{meta.label}</span>
+                  <span className={styles.tileDot} aria-hidden="true" />
+                </span>
+
+                <span className={styles.tileStat}>
                   <span
-                    className={styles.tileIcon}
-                    style={{ background: meta.badgeBg, color: meta.badgeFg }}
+                    key={value}
+                    className={`${styles.tileCount} ${styles.pop}`}
                   >
-                    <Icon className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+                    {unavailable ? "—" : value}
                   </span>
                 </span>
-                <span
-                  key={value}
-                  className={`${styles.tileCount} ${styles.pop}`}
-                  style={{ color: meta.badgeFg }}
-                >
-                  {unavailable ? "—" : value}
-                </span>
+
                 <span className={styles.tileSub}>{meta.summary}</span>
+                <StatusWave />
               </button>
             );
           })}

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { totalHours, creditedProgress } from "@/lib/attendance";
+import {
+  totalHours,
+  creditedProgress,
+  requiredHoursInfo,
+} from "@/lib/attendance";
 import {
   dateKeyIn,
   dayEndISO,
@@ -170,9 +174,15 @@ export async function GET(request: Request) {
   //    requirement. A day is credited as soon as any output has been
   //    submitted for it; the review status (pending, approved, rejected)
   //    does not matter. So a week of full attendance with no submission
-  //    credits 0/40. Derived, never incremented, so decisions can't
-  //    double count.
-  const requiredWeeklyHours = profile?.required_weekly_hours ?? 40;
+  //    credits 0 toward the requirement. Derived, never incremented, so
+  //    decisions can't double count. A missing profile keeps the requirement
+  //    null so the UI can show "Not configured" instead of inventing 40.
+  const requiredWeeklyHours = requiredHoursInfo(
+    profile?.required_weekly_hours
+  ).hours;
+  const requiredTarget = requiredWeeklyHours ?? 0;
+  const hasRequiredTarget =
+    requiredWeeklyHours !== null && requiredWeeklyHours > 0;
 
   // The view is the source of truth. If it isn't reachable yet (migration
   // not applied), derive the identical number from the attendance days and
@@ -281,13 +291,14 @@ export async function GET(request: Request) {
       hoursToday,
       hoursThisWeek,
       requiredWeeklyHours,
-      hoursLoggedPercent:
-        requiredWeeklyHours > 0
-          ? Math.min(Math.round((hoursThisWeek / requiredWeeklyHours) * 100), 100)
-          : 0,
-      coreShift: Math.min(hoursThisWeek, requiredWeeklyHours),
+      hoursLoggedPercent: hasRequiredTarget
+        ? Math.min(Math.round((hoursThisWeek / requiredTarget) * 100), 100)
+        : 0,
+      coreShift: hasRequiredTarget ? Math.min(hoursThisWeek, requiredTarget) : 0,
       standbyHours: hoursToday,
-      overtimeHours: Math.max(0, hoursThisWeek - requiredWeeklyHours),
+      overtimeHours: hasRequiredTarget
+        ? Math.max(0, hoursThisWeek - requiredTarget)
+        : 0,
       // --- Credited hours (counts toward the weekly requirement) ---
       creditedHours: credited.creditedHours,
       creditedPercentMet: credited.percentMet,

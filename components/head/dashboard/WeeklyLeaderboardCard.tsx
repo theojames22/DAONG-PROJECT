@@ -10,22 +10,17 @@ import {
   Crown,
   Loader2,
 } from "lucide-react";
-import { formatHours } from "@/lib/attendance";
-
-export interface LeaderboardEntry {
-  id: string;
-  full_name: string | null;
-  position: string | null;
-  profile_picture_url?: string | null;
-  /** Credited hours for the selected week (employee_week_hours view). */
-  creditedHours: number;
-  /** Weekly requirement in hours; 0 for anyone without a target. */
-  requiredHours: number;
-}
+import { formatHours, formatPercent, formatPercentValue } from "@/lib/attendance";
+import type {
+  LeaderboardCandidate,
+  RankedLeaderboardEntry,
+} from "@/lib/leaderboard";
 
 export interface WeeklyLeaderboardCardProps {
-  /** Already sorted by credited hours (desc), then name. Up to 3 entries. */
-  entries: LeaderboardEntry[];
+  /** Server-ranked by capped completion; top three entries only. */
+  entries: RankedLeaderboardEntry[];
+  /** Staff without a usable weekly requirement; shown as a footnote. */
+  notApplicable: LeaderboardCandidate[];
   /** Compact Monday–Sunday label, e.g. "Oct 12 – Oct 18". */
   weekLabel: string;
   /** Date key (Monday) to load when the previous arrow is pressed. */
@@ -34,11 +29,9 @@ export interface WeeklyLeaderboardCardProps {
   nextWeek: string;
   /** False once the next week has not started yet, so it cannot be opened. */
   canGoNext: boolean;
-  /** Set when the credited-hours query failed server-side. */
+  /** Set when the weekly-hours query failed server-side. */
   error?: boolean;
 }
-
-const EPSILON = 1e-6;
 
 const NAV_BUTTON_CLASS =
   "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#DFE6F0] bg-white text-[#8193AE] transition-colors hover:border-[#C3D2EA] hover:text-[#2864F0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DCE7FF] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[#DFE6F0] disabled:hover:text-[#8193AE]";
@@ -50,22 +43,6 @@ function initialLetter(name: string | null): string {
 /** 40 → "40h", 37.5 → "37.5h" — required targets are usually whole hours. */
 function formatRequired(hours: number): string {
   return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
-}
-
-/**
- * Progress toward the weekly requirement, as a percentage of required hours.
- *
- * The denominator is the Staff member's own required hours — NOT the highest
- * total on the board — so 1.3h of 40h reads as 3.25% rather than a full bar.
- * Credit above the target is capped at 100% for the fill while the numeric
- * value always shows the real total. A missing/zero requirement yields 0%
- * (no division by zero).
- */
-function progressPercent(creditedHours: number, requiredHours: number): number {
-  if (!(requiredHours > 0)) return 0;
-  const pct = (creditedHours / requiredHours) * 100;
-  if (!Number.isFinite(pct)) return 0;
-  return Math.min(100, Math.max(0, pct));
 }
 
 function rowClasses(rank: number): string {
@@ -84,16 +61,17 @@ function rankBadgeClasses(rank: number): string {
 /**
  * Weekly Leaderboard card for the Head dashboard.
  *
- * Ranks the top three Staff by CREDITED hours for the selected Monday–Sunday
- * week — the canonical employee_week_hours figure (attendance hours on days
- * that carry a submitted output and a closed clock), never raw logged time.
- * Heads are excluded upstream because the page only ever passes Staff.
+ * The server ranks Staff by COMPLETION of each person's own weekly requirement
+ * — never by raw credited hours. `employee_week_hours` remains the source of
+ * credited and recorded hours, so pending/checking/rejected submissions keep
+ * following the existing database credit rule.
  *
  * The card owns the only week selector: the `?week=` query param drives the
- * server page, which re-renders this card with fresh entries.
+ * server page, which re-renders this card with fresh ranked entries.
  */
 export default function WeeklyLeaderboardCard({
   entries,
+  notApplicable,
   weekLabel,
   prevWeek,
   nextWeek,
@@ -118,17 +96,6 @@ export default function WeeklyLeaderboardCard({
     });
   };
 
-  // Ties share a rank (1, 2, 2 …) while the alphabet keeps a stable order.
-  let lastHours: number | null = null;
-  let lastRank = 0;
-  const rows = entries.map((entry, index) => {
-    const isTie = lastHours !== null && Math.abs(entry.creditedHours - lastHours) < EPSILON;
-    const rank = isTie ? lastRank : index + 1;
-    lastHours = entry.creditedHours;
-    lastRank = rank;
-    return { entry, rank };
-  });
-
   return (
     <section className="flex w-full flex-col rounded-[17px] border border-[#E1E8F2] bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.10)] enter-up enter-d6">
       {/* Header: title/subtitle on the left, single week selector on the right */}
@@ -138,7 +105,7 @@ export default function WeeklyLeaderboardCard({
             Weekly leaderboard
           </h2>
           <p className="mt-0.5 text-[11.5px] font-normal text-[#71809B]">
-            Staff ranked by credited hours this week.
+            Staff ranked by completion of their own weekly requirement.
           </p>
         </div>
 
@@ -206,7 +173,7 @@ export default function WeeklyLeaderboardCard({
             Couldn&rsquo;t load the leaderboard
           </p>
           <p className="mt-1 max-w-[280px] text-[11px] leading-relaxed text-[#71809B]">
-            Something went wrong loading credited hours.
+            Something went wrong loading weekly hours.
           </p>
           <button
             type="button"
@@ -217,42 +184,46 @@ export default function WeeklyLeaderboardCard({
             Try again
           </button>
         </div>
-      ) : rows.length === 0 ? (
+      ) : entries.length === 0 ? (
         <div className="my-4 flex flex-col items-center justify-center rounded-[14px] border border-dashed border-[#DFE6F0] bg-[#F8FAFD] px-6 py-8 text-center">
           <div className="mb-2.5 flex h-11 w-11 items-center justify-center rounded-full bg-[#EAF1FF] text-[#2864F0]">
             <CalendarClock className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
           </div>
           <p className="text-[13px] font-semibold text-[#17233B]">
-            No credited hours this week
+            No Staff with a weekly requirement
           </p>
           <p className="mt-1 max-w-[280px] text-[11px] leading-relaxed text-[#71809B]">
-            There are no credited hours recorded for this week yet. Try selecting another week.
+            This week&rsquo;s ranking needs Staff who have required weekly hours set.
+            Try selecting another week.
           </p>
         </div>
       ) : (
         <div className="mt-3.5 flex flex-col gap-2">
-          {rows.map(({ entry, rank }) => {
+          {entries.map((entry) => {
             const credited = entry.creditedHours;
             const required = entry.requiredHours;
-            const pct = progressPercent(credited, required);
-            const shortHours = required > 0 ? Math.max(0, required - credited) : 0;
+            const targetMet = entry.completionPercent >= 100;
+            const shortHours = targetMet ? 0 : Math.max(0, required - credited);
+            const overTarget = entry.actualPercent > 100;
 
             return (
               <div
                 key={entry.id}
-                className={`flex items-center gap-2.5 rounded-[14px] border px-3 py-2.5 ${rowClasses(rank)}`}
+                className={`flex items-center gap-2.5 rounded-[14px] border px-3 py-2.5 ${rowClasses(
+                  entry.rank
+                )}`}
               >
                 {/* Rank indicator */}
                 <span
                   className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${rankBadgeClasses(
-                    rank
+                    entry.rank
                   )}`}
-                  aria-label={`Rank ${rank}`}
+                  aria-label={`Rank ${entry.rank}`}
                 >
-                  {rank === 1 ? (
+                  {entry.rank === 1 ? (
                     <Crown className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" />
                   ) : (
-                    rank
+                    entry.rank
                   )}
                 </span>
 
@@ -276,7 +247,7 @@ export default function WeeklyLeaderboardCard({
                     <p className="min-w-0 truncate text-[12px] font-semibold text-[#17233B]">
                       {entry.full_name || "Unnamed"}
                     </p>
-                    {rank === 1 && (
+                    {entry.rank === 1 && (
                       <span className="shrink-0 rounded-full bg-[#2864F0] px-1.5 py-[3px] text-[9px] font-semibold leading-none text-white">
                         Top performer
                       </span>
@@ -284,7 +255,7 @@ export default function WeeklyLeaderboardCard({
                   </div>
 
                   <div className="mt-1.5 flex items-center gap-1.5">
-                    {rank === 1 && (
+                    {entry.rank === 1 && (
                       <span
                         className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2864F0]"
                         aria-hidden="true"
@@ -293,28 +264,36 @@ export default function WeeklyLeaderboardCard({
                     <div className="h-1.5 w-full min-w-[40px] overflow-hidden rounded-full bg-[#E4EAF5]">
                       <div
                         className="h-full rounded-full bg-[#2864F0] transition-all duration-500"
-                        style={{ width: `${pct}%` }}
+                        style={{ width: `${entry.completionPercent}%` }}
                       />
                     </div>
                   </div>
 
-                  {shortHours > 0 && (
-                    <p className="mt-1 text-[9px] font-medium text-[#A45A00]">
-                      Short {formatHours(shortHours)}
-                    </p>
-                  )}
+                  <p
+                    className={`mt-1 text-[9px] font-semibold ${
+                      targetMet ? "text-emerald-600" : "text-[#A45A00]"
+                    }`}
+                  >
+                    {targetMet ? "Target met" : `Short ${formatHours(shortHours)}`}
+                  </p>
                 </div>
 
-                {/* Credited hours (+ required reference) */}
+                {/* Completion percentage + supporting hours */}
                 <div className="shrink-0 pl-1 text-right">
-                  <p className="text-[16px] font-bold leading-none tabular-nums text-[#17233B]">
-                    {formatHours(credited)}
+                  <p className="text-[17px] font-bold leading-none tabular-nums text-[#17233B]">
+                    {formatPercent(entry.completionPercent)}
                   </p>
-                  {required > 0 && (
-                    <p className="mt-1 text-[9.5px] font-medium text-[#94A3B8]">
-                      of {formatRequired(required)}
+                  {overTarget && (
+                    <p className="mt-0.5 text-[9px] font-semibold text-[#2864F0]">
+                      {formatPercentValue(entry.actualPercent)} actual
                     </p>
                   )}
+                  <p className="mt-1 text-[9.5px] font-medium text-[#71809B]">
+                    {formatHours(credited)} / {formatRequired(required)}
+                  </p>
+                  <p className="mt-0.5 text-[9px] font-medium text-[#94A3B8]">
+                    {formatHours(entry.recordedHours)} recorded
+                  </p>
                 </div>
               </div>
             );
@@ -322,9 +301,17 @@ export default function WeeklyLeaderboardCard({
         </div>
       )}
 
+      {!error && notApplicable.length > 0 && (
+        <p className="mt-2.5 text-[10px] font-normal leading-relaxed text-[#94A3B8]">
+          Not Applicable — no weekly requirement:{" "}
+          {notApplicable.map((entry) => entry.full_name || "Unnamed").join(", ")}
+        </p>
+      )}
+
       {/* Footer */}
       <p className="mt-3.5 text-[10px] font-normal leading-relaxed text-[#94A3B8]">
-        Week runs Monday to Sunday and resets every Monday. Ties share a rank.
+        Week runs Monday to Sunday and resets every Monday. Completion is capped
+        at 100% for ranking; ties share a rank.
       </p>
     </section>
   );

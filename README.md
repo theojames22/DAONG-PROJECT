@@ -84,9 +84,10 @@ Run `supabase/appearance_preferences.sql` after the security migrations. It
 adds `profiles.appearance_preferences` (JSONB) and widens
 `profiles.theme_preference` to allow `system`, without touching any other row
 or shared system setting. Until it is applied, Light/Dark still work but System
-Mode and Advanced Appearance saves are rejected by the old check constraint.
-Reads always fall back to a safe default palette if the JSON is missing or
-malformed.
+Mode and Advanced Appearance saves are rejected by the old check constraint;
+the API then reports “Appearance storage is not ready.” After running the SQL,
+reload the app — the migration refreshes PostgREST’s schema cache. Reads always
+fall back to a safe default palette if the JSON is missing or malformed.
 
 If the maintenance window has to be delayed, apply
 `supabase/security_hardening_emergency_2026-10-29.sql` first. It closes the

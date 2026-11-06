@@ -13,7 +13,7 @@ export default function AddEmployeeForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [position, setPosition] = useState("");
-  const [requiredHours, setRequiredHours] = useState("40");
+  const [requiredHours, setRequiredHours] = useState("");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -28,7 +28,8 @@ export default function AddEmployeeForm() {
         email,
         password,
         position,
-        required_weekly_hours: Number(requiredHours),
+        required_weekly_hours:
+          requiredHours.trim() === "" ? undefined : Number(requiredHours),
       }),
     });
 
@@ -44,7 +45,7 @@ export default function AddEmployeeForm() {
     setEmail("");
     setPassword("");
     setPosition("");
-    setRequiredHours("40");
+    setRequiredHours("");
     setOpen(false);
     router.refresh();
   }

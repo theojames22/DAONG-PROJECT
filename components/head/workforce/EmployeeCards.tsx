@@ -3,7 +3,12 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { QrCode, Shield, Users } from "lucide-react";
 import { Profile } from "@/lib/types";
-import { creditedPercent, formatHours, formatPercent } from "@/lib/attendance";
+import {
+  creditedPercent,
+  formatHours,
+  formatPercent,
+  requiredHoursInfo,
+} from "@/lib/attendance";
 import ViewQrModal from "./ViewQrModal";
 import EditEmployeeModal from "./EditEmployeeModal";
 import styles from "@/app/head/workforce/workforce.module.css";
@@ -65,8 +70,14 @@ export default function EmployeeCards({
           // worked without a submitted output is not mistaken for no work.
           const credited = creditedByEmployee[emp.id] ?? 0;
           const recorded = recordedByEmployee[emp.id] ?? 0;
-          const required = emp.required_weekly_hours ?? (isHead ? 0 : 40);
-          const pct = creditedPercent(credited, required);
+          const requirement = requiredHoursInfo(emp.required_weekly_hours);
+          const hasTarget = requirement.status === "configured";
+          const required = requirement.hours ?? 0;
+          const requirementLabel =
+            requirement.status === "not_applicable"
+              ? "No required hours"
+              : "Not configured";
+          const pct = hasTarget ? creditedPercent(credited, required) : 0;
           const initial = (emp.full_name || "E").charAt(0).toUpperCase();
 
           // Circular progress parameters (r=12 -> circumference = 2 * PI * 12 = 75.4)
@@ -169,7 +180,7 @@ export default function EmployeeCards({
                             Manages the team
                           </p>
                           <p className="text-[9.5px] font-medium text-slate-500 mt-0.5 leading-tight">
-                            0.0h / week required
+                            No weekly requirement
                           </p>
                         </div>
                       </>
@@ -185,27 +196,29 @@ export default function EmployeeCards({
                               strokeWidth="3"
                               fill="none"
                             />
-                            <circle
-                              cx="16"
-                              cy="16"
-                              r="12"
-                              className={`stroke-blue-600 ${styles.ringValue}`}
-                              strokeWidth="3"
-                              fill="none"
-                              strokeDasharray={circumference}
-                              strokeLinecap="round"
-                              style={
-                                {
-                                  strokeDashoffset,
-                                  strokeOpacity: pct > 0 ? 1 : 0,
-                                  "--wf-circ": circumference,
-                                  "--wf-target": strokeDashoffset,
-                                } as CSSProperties
-                              }
-                            />
+                            {hasTarget && (
+                              <circle
+                                cx="16"
+                                cy="16"
+                                r="12"
+                                className={`stroke-blue-600 ${styles.ringValue}`}
+                                strokeWidth="3"
+                                fill="none"
+                                strokeDasharray={circumference}
+                                strokeLinecap="round"
+                                style={
+                                  {
+                                    strokeDashoffset,
+                                    strokeOpacity: pct > 0 ? 1 : 0,
+                                    "--wf-circ": circumference,
+                                    "--wf-target": strokeDashoffset,
+                                  } as CSSProperties
+                                }
+                              />
+                            )}
                           </svg>
                           <span className="absolute text-[8.5px] font-bold text-slate-800">
-                            {formatPercent(pct)}
+                            {hasTarget ? formatPercent(pct) : "—"}
                           </span>
                         </div>
 
@@ -215,11 +228,11 @@ export default function EmployeeCards({
                               {formatHours(credited)}
                             </span>
                             <span className="text-[9.5px] text-slate-400 font-normal leading-none">
-                              / {formatHours(required)}
+                              {hasTarget ? `/ ${formatHours(required)}` : "credited"}
                             </span>
                           </div>
                           <span className="text-[9px] font-medium text-slate-400 block mt-0.5 leading-none">
-                            credited this week
+                            {hasTarget ? "credited this week" : requirementLabel}
                           </span>
                           <span className="text-[9.5px] font-medium text-slate-500 block mt-1 leading-none truncate">
                             {formatHours(recorded)} recorded

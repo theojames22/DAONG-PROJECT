@@ -30,7 +30,7 @@ export default function StaffSidebar({
   const supabase = createClient();
 
   const shortId = employeeId ? employeeId.slice(0, 4).toUpperCase() : "8842";
-  const displayRole = position || "Product Engineer";
+  const displayRole = position || "Staff";
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -86,7 +86,7 @@ export default function StaffSidebar({
               {fullName || "Staff"}
             </p>
             <p className="truncate text-[12px] text-ink-muted">
-              {displayRole} • ID-{shortId}
+              {displayRole}
             </p>
           </div>
         </div>

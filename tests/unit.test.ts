@@ -46,6 +46,24 @@ import {
   sanitizeAppearancePreferences,
   validateAppearancePreferences,
 } from "../lib/appearance";
+import { rankByCompletion, type LeaderboardCandidate } from "../lib/leaderboard";
+import {
+  creditedPercent,
+  creditedProgress,
+  formatPercentValue,
+  requiredHoursInfo,
+  requiredHoursLabel,
+  requiredHoursTarget,
+} from "../lib/attendance";
+import {
+  availablePeopleForDate,
+  groupAvailabilityByDate,
+  isAvailableRow,
+  personDayStatus,
+  rowsForPersonOnDate,
+  type SchedulePerson,
+} from "../lib/availability";
+import type { AvailabilityWithProfile } from "../lib/types";
 
 test("dateKeyIn uses the app timezone, not the host timezone", () => {
   // 16:30 UTC is already the next calendar day in Manila.
@@ -442,5 +460,365 @@ test("palette equality is case-insensitive", () => {
       primary: DEFAULT_LIGHT_COLORS.primary.toLowerCase(),
     }),
     true
+  );
+});
+
+test("required hours distinguish configured, zero, and missing values", () => {
+  assert.deepEqual(requiredHoursInfo(40), { status: "configured", hours: 40 });
+  assert.deepEqual(requiredHoursInfo(30), { status: "configured", hours: 30 });
+  assert.deepEqual(requiredHoursInfo("30"), { status: "configured", hours: 30 });
+  assert.deepEqual(requiredHoursInfo(0), { status: "not_applicable", hours: 0 });
+  assert.deepEqual(requiredHoursInfo(null), {
+    status: "not_configured",
+    hours: null,
+  });
+  assert.deepEqual(requiredHoursInfo(undefined), {
+    status: "not_configured",
+    hours: null,
+  });
+  assert.deepEqual(requiredHoursInfo(Number.NaN), {
+    status: "not_configured",
+    hours: null,
+  });
+
+  assert.equal(requiredHoursLabel(40), "40.0h");
+  assert.equal(requiredHoursLabel(0), "No required hours");
+  assert.equal(requiredHoursLabel(null), "Not configured");
+  assert.equal(requiredHoursTarget(0), 0);
+  assert.equal(requiredHoursTarget(undefined), 0);
+});
+
+test("credited progress never invents a 40-hour target", () => {
+  const zero = creditedProgress(0, 0);
+  assert.equal(zero.status, "not_applicable");
+  assert.equal(zero.required, 0);
+  assert.equal(zero.percentMet, 0);
+  assert.equal(zero.remainingHours, 0);
+  assert.equal(zero.targetMet, false);
+
+  const missing = creditedProgress(0, null);
+  assert.equal(missing.status, "not_configured");
+  assert.equal(missing.required, 0);
+  assert.equal(missing.percentMet, 0);
+  assert.equal(missing.remainingHours, 0);
+
+  const thirty = creditedProgress(15, 30);
+  assert.equal(thirty.status, "configured");
+  assert.equal(thirty.required, 30);
+  assert.equal(thirty.percentMet, 50);
+  assert.equal(thirty.remainingHours, 15);
+
+  const forty = creditedProgress(10, 40);
+  assert.equal(forty.required, 40);
+  assert.equal(forty.percentMet, 25);
+  assert.equal(forty.remainingHours, 30);
+
+  assert.equal(creditedPercent(10, 0), 0);
+  assert.equal(creditedPercent(10, 40), 25);
+});
+
+function leaderboardCandidate(
+  id: string,
+  fullName: string,
+  creditedHours: number,
+  recordedHours: number,
+  requiredHours: number
+): LeaderboardCandidate {
+  return {
+    id,
+    full_name: fullName,
+    position: null,
+    profile_picture_url: null,
+    creditedHours,
+    recordedHours,
+    requiredHours,
+  };
+}
+
+test("leaderboard ranks by each Staff member's own completion percentage", () => {
+  const { ranked, notApplicable } = rankByCompletion([
+    leaderboardCandidate("a", "Staff A", 40, 42, 40),
+    leaderboardCandidate("b", "Staff B", 30, 31, 30),
+    leaderboardCandidate("c", "Staff C", 18, 20, 20),
+    leaderboardCandidate("d", "Staff D", 32, 36, 40),
+  ]);
+
+  assert.equal(notApplicable.length, 0);
+  assert.deepEqual(
+    ranked.map((entry) => ({
+      id: entry.id,
+      rank: entry.rank,
+      completion: entry.completionPercent,
+      actual: entry.actualPercent,
+    })),
+    [
+      { id: "a", rank: 1, completion: 100, actual: 100 },
+      { id: "b", rank: 1, completion: 100, actual: 100 },
+      { id: "c", rank: 3, completion: 90, actual: 90 },
+      { id: "d", rank: 4, completion: 80, actual: 80 },
+    ]
+  );
+});
+
+test("over-target work is capped for ranking but keeps its actual percentage", () => {
+  const { ranked } = rankByCompletion([
+    leaderboardCandidate("a", "Over Target", 50, 55, 40),
+    leaderboardCandidate("b", "At Target", 40, 40, 40),
+    leaderboardCandidate("c", "Also At Target", 30, 30, 30),
+  ]);
+
+  assert.deepEqual(
+    ranked.map((entry) => entry.rank),
+    [1, 1, 1]
+  );
+
+  const overTarget = ranked.find((entry) => entry.id === "a");
+  assert.ok(overTarget);
+  assert.equal(overTarget.completionPercent, 100);
+  assert.equal(overTarget.actualPercent, 125);
+  assert.equal(formatPercentValue(overTarget.actualPercent), "125%");
+  assert.equal(overTarget.creditedHours, 50);
+});
+
+test("zero credited hours rank at 0% and zero required hours are excluded", () => {
+  const { ranked, notApplicable } = rankByCompletion([
+    leaderboardCandidate("zero", "Zero Credit", 0, 10, 40),
+    leaderboardCandidate("na", "No Target", 10, 12, 0),
+  ]);
+
+  assert.equal(ranked.length, 1);
+  assert.equal(ranked[0].id, "zero");
+  assert.equal(ranked[0].completionPercent, 0);
+  assert.equal(ranked[0].rank, 1);
+  assert.equal(ranked[0].recordedHours, 10);
+  assert.deepEqual(
+    notApplicable.map((entry) => entry.id),
+    ["na"]
+  );
+});
+
+test("equal completion shares a rank and uses alphabetical order", () => {
+  const { ranked } = rankByCompletion([
+    leaderboardCandidate("z", "Zed", 20, 20, 40),
+    leaderboardCandidate("a", "Amy", 10, 10, 20),
+    leaderboardCandidate("b", "Bob", 25, 25, 50),
+    leaderboardCandidate("low", "Low", 10, 10, 40),
+  ]);
+
+  assert.deepEqual(
+    ranked.map((entry) => entry.id),
+    ["a", "b", "z", "low"]
+  );
+  assert.deepEqual(
+    ranked.map((entry) => entry.rank),
+    [1, 1, 1, 4]
+  );
+});
+
+test("recorded hours never contribute to completion", () => {
+  const { ranked } = rankByCompletion([
+    leaderboardCandidate("a", "Recorded Only", 10, 50, 40),
+  ]);
+
+  assert.equal(ranked[0].creditedHours, 10);
+  assert.equal(ranked[0].recordedHours, 50);
+  assert.equal(ranked[0].completionPercent, 25);
+});
+
+test("floating-point-equivalent ratios stay tied", () => {
+  const { ranked } = rankByCompletion([
+    leaderboardCandidate("a", "One Third", 1, 1, 3),
+    leaderboardCandidate("b", "Two Sixths", 2, 2, 6),
+  ]);
+
+  assert.deepEqual(
+    ranked.map((entry) => entry.completionPercent),
+    [33.33, 33.33]
+  );
+  assert.deepEqual(
+    ranked.map((entry) => entry.rank),
+    [1, 1]
+  );
+});
+
+test("invalid hour values are normalised without breaking ranking", () => {
+  const { ranked, notApplicable } = rankByCompletion([
+    leaderboardCandidate("a", "Invalid Credit", Number.NaN, -10, 40),
+    leaderboardCandidate("b", "Invalid Target", 10, 10, Number.NaN),
+  ]);
+
+  assert.equal(ranked[0].creditedHours, 0);
+  assert.equal(ranked[0].recordedHours, 0);
+  assert.equal(ranked[0].completionPercent, 0);
+  assert.deepEqual(
+    notApplicable.map((entry) => entry.id),
+    ["b"]
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Schedule availability filtering
+// ---------------------------------------------------------------------------
+
+function availabilityRow(
+  id: string,
+  employeeId: string,
+  date: string,
+  startTime: string,
+  endTime: string,
+  status: "available" | "unavailable" = "available"
+): AvailabilityWithProfile {
+  return {
+    id,
+    employee_id: employeeId,
+    date,
+    start_time: startTime,
+    end_time: endTime,
+    status,
+  };
+}
+
+const schedulePeople: SchedulePerson[] = [
+  { id: "p1", full_name: "Ana", position: "Developer" },
+  { id: "p2", full_name: "Ben", position: "Designer" },
+  { id: "p3", full_name: "Cara", position: "Staff" },
+  { id: "p4", full_name: "Dino", position: "Staff" },
+  { id: "p5", full_name: "Eve", position: "Head" },
+];
+
+test("available staff on a date are deduplicated and keep every slot", () => {
+  const rows = [
+    availabilityRow("r1", "p1", "2026-11-05", "14:00:00", "17:00:00"),
+    availabilityRow("r2", "p1", "2026-11-05", "09:00:00", "12:00:00"),
+    availabilityRow("r3", "p5", "2026-11-06", "09:00:00", "12:00:00"),
+  ];
+
+  const entries = availablePeopleForDate(
+    schedulePeople,
+    groupAvailabilityByDate(rows),
+    "2026-11-05"
+  );
+
+  assert.deepEqual(
+    entries.map((entry) => entry.person.id),
+    ["p1"]
+  );
+  assert.equal(entries[0].rows.length, 2);
+  assert.deepEqual(
+    entries[0].rows.map((row) => row.start_time),
+    ["09:00:00", "14:00:00"]
+  );
+  assert.deepEqual(
+    availablePeopleForDate(
+      schedulePeople,
+      groupAvailabilityByDate(rows),
+      "2026-11-07"
+    ),
+    []
+  );
+});
+
+test("missing schedules and unavailable-only people are not available", () => {
+  const rows = [
+    availabilityRow("r1", "p1", "2026-11-05", "09:00:00", "12:00:00"),
+    availabilityRow(
+      "r2",
+      "p2",
+      "2026-11-05",
+      "13:00:00",
+      "17:00:00",
+      "unavailable"
+    ),
+    availabilityRow("r3", "p3", "2026-11-05", "08:00:00", "10:00:00"),
+  ];
+
+  const entries = availablePeopleForDate(
+    schedulePeople,
+    groupAvailabilityByDate(rows),
+    "2026-11-05"
+  );
+
+  assert.deepEqual(
+    entries.map((entry) => entry.person.id),
+    ["p1", "p3"]
+  );
+  assert.equal(
+    entries.some((entry) => entry.person.id === "p2"),
+    false
+  );
+  assert.equal(
+    entries.some((entry) => entry.person.id === "p4"),
+    false
+  );
+});
+
+test("partial availability includes only the available periods", () => {
+  const rows = [
+    availabilityRow("r1", "p1", "2026-11-05", "09:00:00", "12:00:00"),
+    availabilityRow(
+      "r2",
+      "p1",
+      "2026-11-05",
+      "13:00:00",
+      "17:00:00",
+      "unavailable"
+    ),
+  ];
+
+  const entries = availablePeopleForDate(
+    schedulePeople,
+    groupAvailabilityByDate(rows),
+    "2026-11-05"
+  );
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].status, "partial");
+  assert.equal(entries[0].rows.length, 1);
+  assert.equal(entries[0].rows[0].start_time, "09:00:00");
+});
+
+test("day status distinguishes none, unavailable, partial and available", () => {
+  assert.equal(personDayStatus([]), "none");
+  assert.equal(
+    personDayStatus([
+      availabilityRow("r1", "p1", "2026-11-05", "09:00:00", "17:00:00", "unavailable"),
+    ]),
+    "unavailable"
+  );
+  assert.equal(
+    personDayStatus([
+      availabilityRow("r1", "p1", "2026-11-05", "09:00:00", "12:00:00"),
+      availabilityRow("r2", "p1", "2026-11-05", "13:00:00", "17:00:00", "unavailable"),
+    ]),
+    "partial"
+  );
+  assert.equal(
+    personDayStatus([
+      availabilityRow("r1", "p1", "2026-11-05", "09:00:00", "12:00:00"),
+    ]),
+    "available"
+  );
+});
+
+test("availability grouping sorts periods and keeps people separate", () => {
+  const rows = [
+    availabilityRow("r1", "p1", "2026-11-05", "14:00:00", "17:00:00"),
+    availabilityRow("r2", "p2", "2026-11-05", "08:00:00", "10:00:00"),
+    availabilityRow("r3", "p1", "2026-11-05", "09:00:00", "12:00:00"),
+  ];
+  const rowsByDate = groupAvailabilityByDate(rows);
+
+  assert.deepEqual(
+    (rowsByDate.get("2026-11-05") ?? []).map((row) => row.id),
+    ["r2", "r3", "r1"]
+  );
+  assert.deepEqual(
+    rowsForPersonOnDate(rowsByDate, "p1", "2026-11-05").map((row) => row.id),
+    ["r3", "r1"]
+  );
+  assert.equal(isAvailableRow(rows[0]), true);
+  assert.equal(
+    isAvailableRow({ status: "unavailable" } as AvailabilityWithProfile),
+    false
   );
 });

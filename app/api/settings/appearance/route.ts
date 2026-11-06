@@ -13,6 +13,19 @@ const NO_STORE = {
   "Cache-Control": "no-store, max-age=0, must-revalidate",
 } as const;
 
+/**
+ * PostgREST reports a missing column as 42703 (SQL) or PGRST204 (stale schema
+ * cache). A 23514 here is the legacy theme_preference check rejecting
+ * "system" because the appearance migration has not been applied yet.
+ */
+const MIGRATION_ERROR_CODES = new Set(["42703", "42P01", "PGRST204", "23514"]);
+const MIGRATION_MESSAGE =
+  "Appearance storage is not ready. Run supabase/appearance_preferences.sql in the Supabase SQL Editor, then reload this page.";
+
+function isMigrationError(error: { code?: string } | null | undefined) {
+  return Boolean(error?.code && MIGRATION_ERROR_CODES.has(error.code));
+}
+
 async function authenticatedUserId() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
@@ -44,6 +57,12 @@ export async function GET() {
     .single();
 
   if (error || !data) {
+    if (isMigrationError(error)) {
+      return NextResponse.json(
+        { error: MIGRATION_MESSAGE, code: "APPEARANCE_MIGRATION_REQUIRED" },
+        { status: 503, headers: NO_STORE }
+      );
+    }
     return NextResponse.json(
       { error: "Could not load appearance preferences." },
       { status: 500, headers: NO_STORE }
@@ -122,6 +141,12 @@ export async function PUT(request: Request) {
 
   if (error || !data) {
     console.error("Appearance save failed:", error?.message);
+    if (isMigrationError(error)) {
+      return NextResponse.json(
+        { error: MIGRATION_MESSAGE, code: "APPEARANCE_MIGRATION_REQUIRED" },
+        { status: 503, headers: NO_STORE }
+      );
+    }
     return NextResponse.json(
       {
         error:

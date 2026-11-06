@@ -92,11 +92,24 @@ export async function POST(request: Request) {
         : normalizedPosition
       : assignedRole;
 
-  // The weekly requirement is expressed in hours. A missing value uses the
-  // product default; a malformed or out-of-range value is rejected instead of
-  // being written to the profile.
-  let hours = 40;
-  if (!isNewHead && required_weekly_hours !== undefined) {
+  // The weekly requirement is expressed in hours. Staff must be created with
+  // an explicit value (0 is valid and means Not Applicable); never invent 40.
+  // Heads always carry 0.
+  let hours = 0;
+  if (!isNewHead) {
+    if (
+      required_weekly_hours === undefined ||
+      required_weekly_hours === null ||
+      required_weekly_hours === ""
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Required weekly hours is required for Staff. Use 0 for no requirement.",
+        },
+        { status: 400 }
+      );
+    }
     hours = Number(required_weekly_hours);
     if (!Number.isFinite(hours) || hours < 0 || hours > 168) {
       return NextResponse.json(
@@ -257,9 +270,13 @@ export async function PATCH(request: Request) {
   // Head and omits role/position.
   if (nextRole === "head" || (nextRole === undefined && target.role === "head")) {
     updateData.required_weekly_hours = 0;
-  } else if (nextRole === "staff" && required_weekly_hours === undefined) {
-    updateData.required_weekly_hours = 40;
   } else if (required_weekly_hours !== undefined) {
+    if (required_weekly_hours === null || required_weekly_hours === "") {
+      return NextResponse.json(
+        { error: "Required weekly hours must be between 0 and 168." },
+        { status: 400 }
+      );
+    }
     const hours = Number(required_weekly_hours);
     if (!Number.isFinite(hours) || hours < 0 || hours > 168) {
       return NextResponse.json(

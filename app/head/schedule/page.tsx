@@ -3,6 +3,8 @@ import { getAuthenticatedProfile, ProfileMissingError } from "@/lib/auth-utils";
 import { USER_ROLES } from "@/lib/constants";
 import ScheduleManagement from "@/components/head/schedule/ScheduleManagement";
 import { createClient } from "@/lib/supabase/server";
+import { getAppTimezone } from "@/lib/report/queries";
+import { dateKeyIn } from "@/lib/time";
 
 /**
  * Schedule Management — Head accounts only (matching the equipment
@@ -37,6 +39,8 @@ export default async function HeadSchedulePage() {
     .eq("id", viewerId)
     .single();
 
+  const timezone = await getAppTimezone(supabase);
+
   return (
     <ScheduleManagement
       admin={{
@@ -49,6 +53,8 @@ export default async function HeadSchedulePage() {
         theme_preference:
           fullProfile?.theme_preference ?? profile.theme_preference ?? null,
       }}
+      timezone={timezone}
+      initialTodayKey={dateKeyIn(timezone)}
     />
   );
 }

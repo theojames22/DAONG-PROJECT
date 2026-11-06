@@ -3,6 +3,10 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { AlertTriangle, LayoutGrid, List, Search } from "lucide-react";
 import { Profile } from "@/lib/types";
+import type {
+  LeaderboardCandidate,
+  RankedLeaderboardEntry,
+} from "@/lib/leaderboard";
 import AttendanceTable, { type AttendanceRow } from "./AttendanceTable";
 import DatePicker from "./DatePicker";
 import EmployeeCards from "./EmployeeCards";
@@ -18,6 +22,10 @@ export interface WorkforceViewProps {
   creditedByEmployee: Record<string, number>;
   /** Actually recorded hours for the current week (shown as context only). */
   recordedByEmployee: Record<string, number>;
+  /** Server-ranked by completion of each Staff member's own target. */
+  leaderboardEntries: RankedLeaderboardEntry[];
+  /** Staff with no usable weekly requirement; excluded from ranking. */
+  leaderboardNotApplicable: LeaderboardCandidate[];
   activeEmployeeIds: string[];
   weekStart: string;
   weekEnd: string;
@@ -78,6 +86,8 @@ export default function WorkforceView({
   employees,
   creditedByEmployee,
   recordedByEmployee,
+  leaderboardEntries,
+  leaderboardNotApplicable,
   activeEmployeeIds,
   weekStart,
   weekEnd,
@@ -119,9 +129,8 @@ export default function WorkforceView({
           {/* Weekly summary */}
           <div className={styles.enter} style={{ "--wf-delay": "0.06s" } as CSSProperties}>
             <WeeklyLeaderboard
-              employees={employees}
-              creditedByEmployee={creditedByEmployee}
-              recordedByEmployee={recordedByEmployee}
+              entries={leaderboardEntries}
+              notApplicable={leaderboardNotApplicable}
               activeEmployeeIds={activeEmployeeIds}
               weekStart={weekStart}
               weekEnd={weekEnd}

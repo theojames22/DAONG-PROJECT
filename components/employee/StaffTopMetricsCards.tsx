@@ -1,12 +1,13 @@
 "use client";
 
 import { CheckCircle2, Clock, ShieldCheck, Sun } from "lucide-react";
+import { requiredHoursInfo } from "@/lib/attendance";
 
 export interface StaffTopMetricsCardsProps {
   isClockedIn: boolean;
   hoursToday?: number;
   hoursThisWeek: number;
-  requiredWeeklyHours: number;
+  requiredWeeklyHours: number | null;
   creditedHours: number;
   standbyHours?: number;
   overtimeHours?: number;
@@ -21,25 +22,30 @@ export default function StaffTopMetricsCards({
   standbyHours = 0,
   overtimeHours,
 }: StaffTopMetricsCardsProps) {
-  // Hours target
-  const hoursTarget = requiredWeeklyHours > 0 ? requiredWeeklyHours : 40;
-  const hoursLoggedPercent = Math.min(
-    Math.round((hoursThisWeek / hoursTarget) * 100),
-    100
-  );
-  const coreShift = Math.min(hoursThisWeek, hoursTarget);
-  const overtime =
-    overtimeHours !== undefined
-      ? overtimeHours
-      : Math.max(0, hoursThisWeek - hoursTarget);
+  const requirement = requiredHoursInfo(requiredWeeklyHours);
+  const hasTarget = requirement.status === "configured";
+  const hoursTarget = requirement.hours ?? 0;
+  const requirementLabel =
+    requirement.status === "not_applicable" ? "No required hours" : "Not configured";
 
-  // Credited target
-  const creditedTarget = requiredWeeklyHours > 0 ? requiredWeeklyHours : 40;
-  const creditedPercent = Math.min(
-    Math.round((creditedHours / creditedTarget) * 100),
-    100
-  );
-  const creditedRemaining = Math.max(0, creditedTarget - creditedHours);
+  // Hours target — only calculate progress when a real requirement exists.
+  const hoursLoggedPercent = hasTarget
+    ? Math.min(Math.round((hoursThisWeek / hoursTarget) * 100), 100)
+    : 0;
+  const coreShift = hasTarget ? Math.min(hoursThisWeek, hoursTarget) : 0;
+  const overtime = hasTarget
+    ? overtimeHours !== undefined
+      ? overtimeHours
+      : Math.max(0, hoursThisWeek - hoursTarget)
+    : 0;
+
+  // Credited target — same rule: never invent a target.
+  const creditedPercent = hasTarget
+    ? Math.min(Math.round((creditedHours / hoursTarget) * 100), 100)
+    : 0;
+  const creditedRemaining = hasTarget
+    ? Math.max(0, hoursTarget - creditedHours)
+    : 0;
 
   // SVG circular progress parameters (r=20 -> circumference = 2 * PI * 20 = 125.7)
   const circumference = 125.7;
@@ -146,7 +152,7 @@ export default function StaffTopMetricsCards({
             Hours this week
           </span>
           <span className="inline-flex items-center rounded-full bg-staff-soft px-2 py-0.5 text-xs font-bold text-staff-blue-ink">
-            {hoursLoggedPercent}% logged
+            {hasTarget ? `${hoursLoggedPercent}% logged` : requirementLabel}
           </span>
         </div>
 
@@ -163,20 +169,22 @@ export default function StaffTopMetricsCards({
                 strokeWidth="4"
                 fill="none"
               />
-              <circle
-                cx="28"
-                cy="28"
-                r="20"
-                className="stroke-staff-blue transition-all duration-700 ease-out"
-                strokeWidth="4"
-                fill="none"
-                strokeDasharray={circumference}
-                strokeDashoffset={ringOffset}
-                strokeLinecap="round"
-              />
+              {hasTarget && (
+                <circle
+                  cx="28"
+                  cy="28"
+                  r="20"
+                  className="stroke-staff-blue transition-all duration-700 ease-out"
+                  strokeWidth="4"
+                  fill="none"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={ringOffset}
+                  strokeLinecap="round"
+                />
+              )}
             </svg>
             <span className="absolute text-[11px] font-extrabold text-staff-ink">
-              {hoursLoggedPercent}%
+              {hasTarget ? `${hoursLoggedPercent}%` : "—"}
             </span>
           </div>
 
@@ -186,7 +194,7 @@ export default function StaffTopMetricsCards({
                 {hoursThisWeek.toFixed(1)}
               </span>
               <span className="text-sm font-semibold text-staff-body">
-                / {hoursTarget.toFixed(1)}h
+                {hasTarget ? `/ ${hoursTarget.toFixed(1)}h` : "h recorded"}
               </span>
             </div>
             <p className="text-[11px] font-medium text-staff-body mt-0.5">
@@ -196,26 +204,36 @@ export default function StaffTopMetricsCards({
         </div>
 
         {/* Bottom split: Core shift, Standby, Overtime in sentence case */}
-        <div className="grid grid-cols-3 divide-x divide-staff-border border-t border-staff-border pt-2 text-center">
-          <div className="px-1">
-            <p className="text-[10px] font-semibold text-staff-body">Core shift</p>
-            <p className="mt-0.5 text-xs font-bold text-staff-ink">
-              {coreShift.toFixed(1)}h
+        {hasTarget ? (
+          <div className="grid grid-cols-3 divide-x divide-staff-border border-t border-staff-border pt-2 text-center">
+            <div className="px-1">
+              <p className="text-[10px] font-semibold text-staff-body">Core shift</p>
+              <p className="mt-0.5 text-xs font-bold text-staff-ink">
+                {coreShift.toFixed(1)}h
+              </p>
+            </div>
+            <div className="px-1">
+              <p className="text-[10px] font-semibold text-staff-body">Standby</p>
+              <p className="mt-0.5 text-xs font-bold text-staff-ink">
+                {standbyHours.toFixed(1)}h
+              </p>
+            </div>
+            <div className="px-1">
+              <p className="text-[10px] font-semibold text-staff-body">Overtime</p>
+              <p className="mt-0.5 text-xs font-bold text-staff-ink">
+                {overtime.toFixed(1)}h
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="border-t border-staff-border pt-2 text-center">
+            <p className="text-[11px] font-medium text-staff-body">
+              {requirement.status === "not_applicable"
+                ? "No weekly requirement to split into core, standby, or overtime."
+                : "Required hours are not configured."}
             </p>
           </div>
-          <div className="px-1">
-            <p className="text-[10px] font-semibold text-staff-body">Standby</p>
-            <p className="mt-0.5 text-xs font-bold text-staff-ink">
-              {standbyHours.toFixed(1)}h
-            </p>
-          </div>
-          <div className="px-1">
-            <p className="text-[10px] font-semibold text-staff-body">Overtime</p>
-            <p className="mt-0.5 text-xs font-bold text-staff-ink">
-              {overtime.toFixed(1)}h
-            </p>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ===================================================================
@@ -228,7 +246,7 @@ export default function StaffTopMetricsCards({
             Credited hours
           </span>
           <span className="inline-flex items-center rounded-full bg-staff-success-soft px-2 py-0.5 text-xs font-bold text-staff-success">
-            {creditedPercent}% met
+            {hasTarget ? `${creditedPercent}% met` : requirementLabel}
           </span>
         </div>
 
@@ -240,22 +258,32 @@ export default function StaffTopMetricsCards({
                 {creditedHours.toFixed(1)}
               </span>
               <span className="text-sm font-semibold text-staff-body">
-                / {creditedTarget.toFixed(1)}h
+                {hasTarget ? `/ ${hoursTarget.toFixed(1)}h` : "h credited"}
               </span>
             </div>
             <span className="text-xs font-bold text-staff-body">
-              {creditedRemaining > 0
-                ? `${creditedRemaining.toFixed(1)}h remaining`
-                : "Target met"}
+              {hasTarget
+                ? creditedRemaining > 0
+                  ? `${creditedRemaining.toFixed(1)}h remaining`
+                  : "Target met"
+                : "—"}
             </span>
           </div>
 
-          <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-blue-600 transition-all duration-700 ease-out"
-              style={{ width: `${creditedPercent}%` }}
-            />
-          </div>
+          {hasTarget ? (
+            <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-blue-600 transition-all duration-700 ease-out"
+                style={{ width: `${creditedPercent}%` }}
+              />
+            </div>
+          ) : (
+            <p className="mt-2 text-[11px] font-medium text-staff-body">
+              {requirement.status === "not_applicable"
+                ? "No weekly requirement to measure against."
+                : "Required hours are not configured."}
+            </p>
+          )}
         </div>
 
         {/* Short info line: "Hours count on days with a submitted output." */}
